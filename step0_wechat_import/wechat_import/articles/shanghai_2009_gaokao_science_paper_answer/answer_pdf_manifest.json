@@ -1,0 +1,29 @@
+{
+  "run_id": "shanghai_2009_gaokao_science_paper_answer",
+  "year": 2009,
+  "season": "gaokao",
+  "stream": "science",
+  "mode": "paper_plus_answer_file",
+  "source_shape": "split_paper_answer",
+  "paper_pdf": "D:\\Courses\\Research\\MathExam2QuestionBank\\gaokaomath_shanghai\\2009_2025\\hi_quality\\2009\\2009上海理.pdf",
+  "answer_pdf": "D:\\Courses\\Research\\MathExam2QuestionBank\\code\\worktrees\\v11_worktree\\step0_wechat_import\\wechat_import\\articles\\shanghai_2009_gaokao_science_paper_answer\\answer_images_02_14.pdf",
+  "answer_source_url": "https://mp.weixin.qq.com/s/LV0D7yBiEwCK223KOwu4-g",
+  "paper_source_rule": "2009 science paper from gaokaomath_shanghai\\2009_2025\\hi_quality\\2009\\2009上海理.pdf",
+  "answer_source_rule": "WeChat article images #2-#14 only; #0-#1 promotional images excluded.",
+  "answer_image_indices": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "answer_pdf_page_count": 13
+}

@@ -1,0 +1,22 @@
+{
+  "source_article": "https://mp.weixin.qq.com/s/7Ni9uvW3VJ5MXs04y0KiZA",
+  "title": "【高考真题】2011年上海高考数学",
+  "image_indices": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "excluded_image_indices": [
+    0,
+    1
+  ],
+  "pdf": "D:\\Courses\\Research\\MathExam2QuestionBank\\code\\worktrees\\v11_worktree\\step0_wechat_import\\wechat_import\\articles\\shanghai_2011_gaokao_science_paper_answer\\answer_images.pdf",
+  "page_count": 10
+}

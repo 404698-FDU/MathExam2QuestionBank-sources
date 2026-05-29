@@ -1,0 +1,42 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+ENV/
+
+# Local editor and OS metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets and local credentials
+.env
+.env.*
+.siliconflow_token
+.silliconflow_token
+.bailian_token
+.mineru_token
+*_token
+*_token.txt
+*secret*
+*credentials*
+
+# Pipeline outputs
+runs/
+runs_*/
+runs-step*/
+reviews_step3_5_latex_audit/
+rendered_question_bank_mathjax/
+token_budget*.jsonl
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak

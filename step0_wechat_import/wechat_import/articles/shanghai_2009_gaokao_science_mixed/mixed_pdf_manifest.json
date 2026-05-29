@@ -1,0 +1,32 @@
+{
+  "run_id": "shanghai_2009_gaokao_science_paper_answer",
+  "article_url": "https://mp.weixin.qq.com/s/SvQ2GgqB_YrRcEOHxX6FVw",
+  "article_title": "一帮一微课堂---2009年上海高考数学（理）真题逐题解析",
+  "mode": "mixed",
+  "source_shape": "single_wechat_interleaved_images_pdf",
+  "image_indices": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "page_count": 13,
+  "source_pdf": "D:\\Courses\\Research\\MathExam2QuestionBank\\code\\worktrees\\v11_worktree\\step0_wechat_import\\wechat_import\\articles\\shanghai_2009_gaokao_science_mixed\\mixed_images_02_14.pdf",
+  "excluded_image_indices": [
+    0,
+    1,
+    15,
+    16,
+    17
+  ],
+  "rule": "Use WeChat article images #2-#14 as a single mixed paper; exclude subscribe banner, cover, QR/decorative images."
+}
