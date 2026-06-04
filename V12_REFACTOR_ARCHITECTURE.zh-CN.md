@@ -39,21 +39,21 @@ v12 不做以下事情：
   doc/
     zh_CN/
       step2_layout.md
+      step2_qa_alignment_contract.md
+      step2_crop_algorithm.md
       step3_question_json.md
       step35_latex_audit.md
       step4_assets.md
+      step4_asset_placeholder_algorithm.md
+      step5_render.md
+      step_pipeline_processing_flow.md
   prompts/
     zh_CN/
       step2_layout.prompt.md
-      step2_qa_alignment_contract.md
-      step2_crop_algorithm.md
       step3_question_json.prompt.md
       step35_latex_audit.prompt.md
       step4_visual_assets.prompt.md
       step4_answer_tables.prompt.md
-      step4_asset_placeholder_algorithm.md
-      step5_render.md
-      step_pipeline_processing_flow.md
   call_specs/
     README.zh-CN.md
     step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json
@@ -126,9 +126,8 @@ v12 不做以下事情：
 目录职责：
 
 - `V12_PROMPT_SCHEMA_LAYOUT.zh-CN.md`：定义 prompt 文档、tool schema、运行时 schema 和步骤代码之间的分层边界。
-- `doc/zh_CN/`：保存旧长版 prompt 契约文档，仅作为历史设计证据。
+- `doc/zh_CN/`：保存旧长版 prompt 契约文档、算法说明、流程说明和人工审阅资料，仅作为设计证据与追溯资料。
 - `prompts/zh_CN/*.prompt.md`：保存运行时实际读取的中文 prompt，固定使用 `meta/system/user` 结构。
-- `prompts/zh_CN/*.md`：保存当前仍需随 prompt 审阅的算法和流转说明。
 - `tool_schemas/`：保存真正发给 function calling / structured output 的独立 JSON Schema 文件。
 - `exam_import/cli/`：只处理命令行参数、加载配置、调用业务模块。
 - `exam_import/core/`：处理路径、run 上下文、流程状态、证据报告。

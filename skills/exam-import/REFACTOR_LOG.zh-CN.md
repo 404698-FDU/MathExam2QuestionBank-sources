@@ -2,6 +2,32 @@
 
 ## 2026-06-05
 
+### 收敛 PromptLoader 职责为只读取模型 prompt
+
+修改范围：
+
+- 修改 `exam_import/prompts/registry.py`
+- 修改 `exam_import/cli/check_contracts.py`
+- 修改 `prompts/zh_CN/README.md`
+
+修改原因：
+
+- `PromptLoader` 不应管理算法文档、流程文档或历史契约文档的存放。
+- 运行时真正发送给模型的只有 `*.prompt.md`，其他文档只应作为 `meta.source_doc` 的人工证据和 contract check 对象。
+
+影响：
+
+- prompt registry 只保留 5 个模型 prompt。
+- contract check 单独检查 prompt `meta.source_doc` 是否存在且仍位于 runtime 根目录内。
+- `PromptLoader` 不再通过 `../../doc/zh_CN/...` 读取非 prompt 文档。
+
+验证：
+
+- 已运行默认模板 spec 校验，结果通过。
+- 已运行本次导入 run spec 校验，结果通过。
+- 已运行 contract check，结果通过：prompt_refs=20、prompt_source_docs=5、providers=3、models=6、tool_schema_aliases=10、call_specs=5。
+- 已对 `exam_import/**/*.py` 执行源码级编译检查，结果通过：56 个 Python 文件。
+
 ### 修复 qwen3.5-flash 模型配置 JSON
 
 修改范围：

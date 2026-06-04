@@ -59,8 +59,11 @@ def check_contracts() -> dict[str, Any]:
     runtime_paths = RuntimePaths.discover()
     prompt_loader = PromptLoader(runtime_paths=runtime_paths)
     prompt_results: list[dict[str, Any]] = []
+    prompt_doc_results: list[dict[str, Any]] = []
     for prompt_name, relative_path in sorted(KNOWN_PROMPTS.items()):
         document = prompt_loader.load(prompt_name)
+        if document.path.suffix != ".md" or not document.path.name.endswith(".prompt.md"):
+            raise RuntimeError(f"Prompt registry must only reference *.prompt.md files: {prompt_name} -> {document.path}")
         prompt_results.append(
             {
                 "prompt_ref": prompt_name,
@@ -84,6 +87,21 @@ def check_contracts() -> dict[str, Any]:
             if meta.get("prompt_ref") != prompt_name:
                 raise RuntimeError(
                     f"Prompt meta prompt_ref mismatch: prompt_ref={prompt_name}, meta={meta.get('prompt_ref')}"
+                )
+            source_doc = meta.get("source_doc", "")
+            if source_doc:
+                source_doc_path = (document.path.parent / source_doc).resolve()
+                if not source_doc_path.exists():
+                    raise RuntimeError(f"Prompt source_doc not found: {prompt_name} -> {source_doc_path}")
+                if not _is_relative_to(source_doc_path, runtime_paths.runtime_root):
+                    raise RuntimeError(f"Prompt source_doc must stay inside runtime root: {prompt_name} -> {source_doc_path}")
+                prompt_doc_results.append(
+                    {
+                        "prompt_ref": prompt_name,
+                        "source_doc": source_doc,
+                        "path": str(source_doc_path),
+                        "status": "ok",
+                    }
                 )
 
     schema_results: list[dict[str, Any]] = []
@@ -144,16 +162,26 @@ def check_contracts() -> dict[str, Any]:
 
     return {
         "prompt_ref_count": len(prompt_results),
+        "prompt_source_doc_count": len(prompt_doc_results),
         "provider_config_count": len(provider_results),
         "model_config_count": len(model_results),
         "tool_schema_alias_count": len(schema_results),
         "call_spec_count": len(call_spec_results),
         "prompts": prompt_results,
+        "prompt_source_docs": prompt_doc_results,
         "providers": provider_results,
         "models": model_results,
         "tool_schemas": schema_results,
         "call_specs": call_spec_results,
     }
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def _validate_tool_schema(filename: str, schema: dict[str, Any]) -> None:

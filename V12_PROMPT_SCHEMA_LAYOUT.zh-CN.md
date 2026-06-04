@@ -9,13 +9,10 @@ v12 中至少分八层：
 1. `prompts/zh_CN/*.prompt.md`
    保存运行时实际读取的中文 prompt 文本，固定采用 `meta/system/user` 三段结构。
 
-2. `prompts/zh_CN/*.md`
-   保存仍需随运行时 prompt 一起审阅的步骤算法和上下游流转说明。
+2. `doc/zh_CN/*.md`
+   保存旧长版 prompt 契约文档、步骤算法、上下游流转说明和人工审阅资料，作为设计证据保留，不作为运行时 prompt 读取源。
 
-3. `doc/zh_CN/*.md`
-   保存旧长版 prompt 契约文档，作为历史设计证据保留，不再作为运行时读取源，也不作为 `check_contracts.py` 的机器校验目标。
-
-4. `schemas/*.py`
+3. `schemas/*.py`
    保存运行时代码真正使用的数据结构校验，例如：
    - `qa_alignment_v2`
    - `QuestionRecord`
@@ -24,16 +21,16 @@ v12 中至少分八层：
    - `AnswerTableReview`
    - `CallSpec`
 
-5. `provider_config/**/*.json`
+4. `provider_config/**/*.json`
    保存 provider 和 model 的静态外置配置。
 
-6. `tool_schemas/*.schema.json`
+5. `tool_schemas/*.schema.json`
    保存真正发给 tool calling API 的 JSON Schema。
 
-7. `call_specs/*.json`
+6. `call_specs/*.json`
    保存每一步实际调用使用的 `call_spec_v1` JSON。
 
-8. `steps/*.py`
+7. `steps/*.py`
    消费前面各层的稳定产物，不再自己发明字段。
 
 ## 2. 各层职责
@@ -61,6 +58,7 @@ v12 中至少分八层：
 
 不职责：
 
+- 不由 `PromptLoader` 读取。
 - 不要求运行时逐段解析其中的多级标题。
 
 ### 历史证据文档层
@@ -73,7 +71,7 @@ v12 中至少分八层：
 不职责：
 
 - 不作为运行时 prompt source of truth。
-- 不作为当前 `check_contracts.py` 的 heading path 校验目标。
+- 不作为当前 `check_contracts.py` 的 heading path 校验目标；只允许被 `meta.source_doc` 做存在性检查。
 
 ### 运行时 schema 层
 
@@ -135,9 +133,14 @@ assets/v12_runtime/
   doc/
     zh_CN/
       step2_layout.md
+      step2_qa_alignment_contract.md
+      step2_crop_algorithm.md
       step3_question_json.md
       step35_latex_audit.md
       step4_assets.md
+      step4_asset_placeholder_algorithm.md
+      step5_render.md
+      step_pipeline_processing_flow.md
   provider_config/
     providers/
       *.json
@@ -146,15 +149,10 @@ assets/v12_runtime/
   prompts/
     zh_CN/
       step2_layout.prompt.md
-      step2_qa_alignment_contract.md
-      step2_crop_algorithm.md
       step3_question_json.prompt.md
       step35_latex_audit.prompt.md
       step4_visual_assets.prompt.md
       step4_answer_tables.prompt.md
-      step4_asset_placeholder_algorithm.md
-      step5_render.md
-      step_pipeline_processing_flow.md
   exam_import/
     schemas/
       call_spec.py
@@ -199,8 +197,7 @@ assets/v12_runtime/
 当前 v12 已做到：
 
 - 运行时 prompt 已独立放在 `prompts/zh_CN/*.prompt.md`
-- 当前算法和流转说明仍独立放在 `prompts/zh_CN/*.md`
-- 旧长版 prompt 契约文档已迁移到 `doc/zh_CN/*.md`，只作为历史证据
+- 算法、流转说明和旧长版 prompt 契约文档已迁移到 `doc/zh_CN/*.md`，只作为设计证据
 - 运行时 schema 已独立放在 `exam_import/schemas/`
 - provider/model 静态配置已独立放在 `provider_config/**/*.json`
 - tool schema 已独立放在 `tool_schemas/*.schema.json`
@@ -208,6 +205,7 @@ assets/v12_runtime/
 - `exam_import/cli/check_contracts.py` 已可机器校验：
   - `prompt_ref -> prompt 文件`
   - 运行时 prompt 的 `meta/system/user` section
+  - 运行时 prompt 的 `meta.source_doc` 存在且位于 runtime 根目录内
   - `tool_schema_ref -> *.schema.json`
   - 核心 tool schema 的顶层 required 字段
   - `call_spec_path -> call_spec_v1 JSON -> provider/model/prompt/tool`
