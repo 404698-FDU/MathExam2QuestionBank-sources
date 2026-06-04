@@ -1,0 +1,20 @@
+{
+  "schema_version": "call_spec_v1",
+  "step": "step4_answer_tables",
+  "mode": "answer_table_review",
+  "prompt": "step4_answer_tables",
+  "provider": "bailian",
+  "model": "qwen-vl-max",
+  "structured_output": "tool_calling",
+  "tool_name": "submit_step4_answer_tables",
+  "tool_schema": "AnswerTableReview",
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "timeout": 180,
+  "max_retries": 1,
+  "enable_thinking": false,
+  "input": {
+    "ocr": true,
+    "images": true
+  }
+}

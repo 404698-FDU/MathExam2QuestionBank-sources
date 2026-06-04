@@ -1,0 +1,14 @@
+{
+  "name": "openai",
+  "base_url": "https://api.openai.com/v1",
+  "chat_path": "chat/completions",
+  "token_env_vars": [
+    "OPENAI_API_KEY"
+  ],
+  "token_file_env_vars": [],
+  "supports_tool_calling": true,
+  "supports_json_schema": true,
+  "supports_json_object": true,
+  "thinking_field": "enable_thinking",
+  "request_headers": {}
+}

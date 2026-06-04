@@ -1,0 +1,163 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "assets",
+    "risks"
+  ],
+  "properties": {
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "question_no",
+          "placeholder_status",
+          "action",
+          "source_field",
+          "target_field",
+          "insert_position",
+          "asset_tag",
+          "placeholder",
+          "option_group_no",
+          "option_label",
+          "caption_labels",
+          "caption_text",
+          "confidence",
+          "reason"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "question_no": {
+            "type": "integer"
+          },
+          "placeholder_status": {
+            "type": "string",
+            "enum": [
+              "matched",
+              "belongs_but_missing_placeholder",
+              "placeholder_but_not_belong",
+              "wrong_field",
+              "wrong_tag",
+              "no_placeholder_needed",
+              "uncertain"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "keep_existing",
+              "add_placeholder",
+              "remove_placeholder",
+              "move_placeholder",
+              "ignore_asset",
+              "review_required"
+            ]
+          },
+          "source_field": {
+            "type": "string",
+            "enum": [
+              "stem_markdown",
+              "options_markdown",
+              "answer_markdown",
+              "analysis_markdown",
+              "none"
+            ]
+          },
+          "target_field": {
+            "type": "string",
+            "enum": [
+              "stem_markdown",
+              "options_markdown",
+              "answer_markdown",
+              "analysis_markdown",
+              "none"
+            ]
+          },
+          "insert_position": {
+            "type": "string",
+            "enum": [
+              "existing_position",
+              "append_to_field_end",
+              "append_to_option_end",
+              "remove_existing",
+              "none"
+            ]
+          },
+          "asset_tag": {
+            "type": "string",
+            "enum": [
+              "img",
+              "table",
+              "chart",
+              "none"
+            ]
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "option_group_no": {
+            "type": "string"
+          },
+          "option_label": {
+            "type": "string"
+          },
+          "caption_labels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "caption_text": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

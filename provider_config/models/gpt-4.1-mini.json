@@ -1,0 +1,17 @@
+{
+  "name": "gpt-4.1-mini",
+  "providers": [
+    "openai"
+  ],
+  "context_window": 1047576,
+  "supports_vision": true,
+  "supports_tool_calling": true,
+  "supported_response_modes": [
+    "tool_calling",
+    "json_schema",
+    "json_object"
+  ],
+  "token_estimator": "char_div_4",
+  "recommended_tpm": 30000,
+  "default_enable_thinking": false
+}

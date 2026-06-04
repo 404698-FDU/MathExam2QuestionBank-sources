@@ -1,0 +1,16 @@
+{
+  "name": "qwen3.7-plus",
+  "providers": [
+    "dashscope",
+    "bailian"
+  ],
+  "context_window": 1000000,
+  "supports_vision": false,
+  "supports_tool_calling": false,
+  "supported_response_modes": [
+    "none"
+  ],
+  "token_estimator": "char_div_4",
+  "recommended_tpm": 20000,
+  "default_enable_thinking": false
+}

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.mineru_token
+runs/
+source_runs/
+tmp/
+*.log
+*.pid
+*.sqlite
+*.partial.jsonl

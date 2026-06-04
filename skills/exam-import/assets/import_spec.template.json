@@ -1,0 +1,62 @@
+{
+  "schema_version": "import_spec_v2",
+  "run_id": "<run_id>",
+  "input_mode": "paper_plus_answer",
+  "runtime_root": ".",
+  "runs_root": "runs",
+  "sources": {
+    "paper_pdf": "<paper.pdf>",
+    "paper_prepared_dir": "",
+    "paper_page_range": "",
+    "paper_extractor": "mineru_vlm",
+    "answer_pdf": "<answer.pdf>",
+    "answer_prepared_dir": "",
+    "answer_page_range": "",
+    "answer_extractor": "mineru_vlm",
+    "mixed_pdf": "",
+    "mixed_prepared_dir": "",
+    "mixed_extractor": "mineru_vlm"
+  },
+  "source_rules": {
+    "paper": "题面来源",
+    "answer": "答案解析来源"
+  },
+  "mineru": {
+    "token_file": ".mineru_token",
+    "timeout": 900,
+    "poll_interval": 10,
+    "dpi": 144,
+    "extract_retries": 3,
+    "extract_retry_sleep": 60,
+    "language": "ch",
+    "enable_formula": true,
+    "enable_table": true,
+    "enable_ocr": true
+  },
+  "llm": {
+    "provider": "bailian",
+    "primary_model": "qwen-vl-max",
+    "timeout": 180,
+    "max_workers": 8,
+    "enable_thinking": false,
+    "call_specs": {
+      "step2_question_ranges": "call_specs/step2_question_ranges.bailian.qwen-vl-max.tool_calling.json",
+      "step3_question_json": "call_specs/step3_question_json.bailian.qwen-vl-max.tool_calling.json",
+      "step35_latex_audit": "call_specs/step35_latex_audit.bailian.qwen3.5-flash.tool_calling.json",
+      "step4_visual_assets": "call_specs/step4_visual_assets.bailian.qwen-vl-max.tool_calling.json",
+      "step4_answer_tables": "call_specs/step4_answer_tables.bailian.qwen-vl-max.tool_calling.json"
+    }
+  },
+  "cache_policy": {
+    "reuse_existing_ocr": false,
+    "force_source": false,
+    "force_pipeline": false
+  },
+  "steps": {
+    "skip_step2": false,
+    "skip_step3": false,
+    "step3_5": true,
+    "skip_step4": false,
+    "skip_render": false
+  }
+}

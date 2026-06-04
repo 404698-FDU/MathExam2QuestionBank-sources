@@ -1,0 +1,111 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "question_ranges",
+    "noise_blocks",
+    "risks"
+  ],
+  "properties": {
+    "question_ranges": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question_no",
+          "start_label",
+          "end_label",
+          "visual_labels",
+          "confidence",
+          "reason"
+        ],
+        "properties": {
+          "question_no": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "start_label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "end_label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visual_labels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "noise_blocks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "question_no",
+          "block_labels",
+          "severity",
+          "evidence"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "boundary",
+              "missing",
+              "uncertain"
+            ]
+          },
+          "question_no": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "block_labels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

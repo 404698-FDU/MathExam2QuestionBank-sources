@@ -1,0 +1,16 @@
+{
+  "name": "Qwen/Qwen3.6-27B",
+  "providers": [
+    "siliconflow"
+  ],
+  "context_window": 131072,
+  "supports_vision": false,
+  "supports_tool_calling": true,
+  "supported_response_modes": [
+    "tool_calling",
+    "json_object"
+  ],
+  "token_estimator": "char_div_4",
+  "recommended_tpm": 56000,
+  "default_enable_thinking": false
+}

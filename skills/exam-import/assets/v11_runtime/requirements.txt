@@ -1,0 +1,6 @@
+pillow
+pydantic>=2
+pypdf
+requests
+pymupdf
+transformers

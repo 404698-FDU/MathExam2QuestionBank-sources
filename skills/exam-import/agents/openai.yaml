@@ -1,0 +1,4 @@
+interface:
+  display_name: "Exam Import"
+  short_description: "Run v12 math exam parsing with evidence."
+  default_prompt: "Use $exam-import to draft a v12 import spec, run source import and Step2-Step5, then report evidence."
