@@ -44,6 +44,7 @@ class CropIsland:
     stream: str
     image_path: str
     labels: list[str]
+    items: list[PacketGeometry]
     bbox: tuple[float, float, float, float]
     order: int
 
@@ -98,6 +99,7 @@ def crop_islands_for_question_page(
                 stream=component_items[0].stream,
                 image_path=component_items[0].image_path,
                 labels=[item.label for item in sorted(component_items, key=lambda entry: (entry.reading_order, entry.label))],
+                items=sorted(component_items, key=lambda entry: (entry.reading_order, entry.label)),
                 bbox=union_bbox(component_boxes),
                 order=min(item.reading_order for item in component_items),
             )

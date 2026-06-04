@@ -2,6 +2,31 @@
 
 ## 2026-06-05
 
+### Step3 裁剪图只标注资产框
+
+修改范围：
+
+- 修改 `exam_import/steps/step2_crop.py`
+- 修改 `exam_import/steps/step2_runtime.py`
+- 修改 `doc/zh_CN/step2_crop_algorithm.md`
+
+修改原因：
+
+- Step3 image-only 输入不需要文本块 label；大量 B 类 label 会干扰模型 OCR 和资产占位生成。
+- Step3 需要能看见真实资产 label，避免继续自造 `Q-V02-P01`、`M-V02-T01` 这类 source run 不存在的标签。
+
+影响：
+
+- Step2 范围识别用的整页标注图保持不变，仍显示文本块和资产块。
+- Step3 单题裁剪图写入时只绘制 P/T/C 类视觉资产框。
+- 资产 label 放在资产框内部左上角，不再放到框外。
+- B 类文本块 label 不会出现在 Step3 裁剪图上。
+
+验证：
+
+- 已运行源码级编译检查，结果通过：56 个 Python 文件。
+- 已运行 Step2 crop 标注烟测，生成的 Step3 裁剪图只包含资产框 label。
+
 ### 禁止 Step3/Step4 自造资产标签
 
 修改范围：

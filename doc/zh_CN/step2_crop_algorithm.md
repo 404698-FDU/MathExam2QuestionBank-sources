@@ -69,6 +69,26 @@ y_image = y / coord_height * image_height
 
 如果 Step2 把范围外但属于该题的图片、表格、图表放入 `visual_labels`，这些 label 应参与该题裁剪。但 Step4 仍负责最终资产占位对账。
 
+### 6. Step3 裁剪图只标注资产框
+
+Step3 使用的单题裁剪图与 Step2 范围识别用的整页标注图不同：
+
+```text
+Step2 整页标注图：保留文本块 label 和资产 label，用于模型判断题号范围。
+Step3 单题裁剪图：只标注资产框 label，不标注文本块 label。
+```
+
+Step3 裁剪图写入时应在裁剪后的图片内叠加资产框：
+
+```text
+只绘制 P/T/C 类视觉资产 label。
+label 放在资产框内部左上角。
+不得在框外绘制 label。
+不得绘制 B 类文本块 label。
+```
+
+这样 Step3 模型能够读取真实资产 label 并生成 `<img src="...">`、`<table src="...">` 或 `<chart src="...">` 占位，同时不会被大量文本块 label 干扰题面 OCR。
+
 ## 同页跨栏裁剪问题
 
 原先同页同题裁剪方式是：

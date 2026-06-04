@@ -582,8 +582,66 @@ def _write_crop_image(
     filename = f"{run_id}_q{question_no:03d}_{role}_surface_p{island.page:03d}_{index}.png"
     out_path = crop_dir / filename
     with Image.open(island.image_path) as image:
-        image.crop((left, top, right, bottom)).save(out_path)
+        cropped = image.crop((left, top, right, bottom)).convert("RGB")
+        _draw_asset_labels_inside_crop(cropped, island.items, crop_left=left, crop_top=top)
+        cropped.save(out_path)
     return out_path
+
+
+def _draw_asset_labels_inside_crop(
+    image: Any,
+    items: list[PacketGeometry],
+    *,
+    crop_left: int,
+    crop_top: int,
+) -> None:
+    from PIL import ImageDraw
+
+    draw = ImageDraw.Draw(image, "RGBA")
+    for item in items:
+        if not _is_asset_label(item.label):
+            continue
+        x1 = int(round(item.bbox[0])) - crop_left
+        y1 = int(round(item.bbox[1])) - crop_top
+        x2 = int(round(item.bbox[2])) - crop_left
+        y2 = int(round(item.bbox[3])) - crop_top
+        if x2 <= 0 or y2 <= 0 or x1 >= image.width or y1 >= image.height:
+            continue
+        x1 = max(0, min(image.width - 1, x1))
+        y1 = max(0, min(image.height - 1, y1))
+        x2 = max(0, min(image.width - 1, x2))
+        y2 = max(0, min(image.height - 1, y2))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        color = (214, 82, 51, 235)
+        draw.rectangle((x1, y1, x2, y2), outline=color, width=3)
+        _draw_label_inside_box(draw, image.width, image.height, (x1, y1, x2, y2), item.label, color)
+
+
+def _draw_label_inside_box(
+    draw: Any,
+    image_width: int,
+    image_height: int,
+    box: tuple[int, int, int, int],
+    label: str,
+    color: tuple[int, int, int, int],
+) -> None:
+    x1, y1, x2, y2 = box
+    pad = 3
+    text_bbox = draw.textbbox((0, 0), label)
+    label_w = text_bbox[2] - text_bbox[0]
+    label_h = text_bbox[3] - text_bbox[1]
+    bg_w = min(label_w + 2 * pad, max(1, x2 - x1))
+    bg_h = min(label_h + 2 * pad, max(1, y2 - y1))
+    bg_x1 = max(0, min(image_width - bg_w, x1))
+    bg_y1 = max(0, min(image_height - bg_h, y1))
+    draw.rectangle((bg_x1, bg_y1, bg_x1 + bg_w, bg_y1 + bg_h), fill=color)
+    draw.text((bg_x1 + pad, bg_y1 + pad), label, fill=(255, 255, 255, 255))
+
+
+def _is_asset_label(label: str) -> bool:
+    local = label.rsplit("-", 1)[-1]
+    return local.startswith(("P", "T", "C"))
 
 
 def _image_size(path_text: str, cache: dict[str, tuple[int, int]]) -> tuple[int, int]:
