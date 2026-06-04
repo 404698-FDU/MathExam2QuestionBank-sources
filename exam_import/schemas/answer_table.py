@@ -62,6 +62,12 @@ class AnswerTableResult:
             AnswerTableEntry.from_dict(expect_mapping(item, f"entries[{index}]"))
             for index, item in enumerate(entries_payload)
         ]
+        if role == "answer_key_table":
+            target_field = "answer_markdown"
+        elif role == "analysis_table":
+            target_field = "analysis_markdown"
+        elif role in {"noise", "uncertain"}:
+            target_field = "none"
         if role == "answer_key_table" and target_field != "answer_markdown":
             raise ValidationError("answer_key_table target_field must be answer_markdown")
         if role == "analysis_table" and target_field != "analysis_markdown":

@@ -1,8 +1,7 @@
 {
   "name": "qwen-vl-max",
   "providers": [
-    "dashscope",
-    "bailian"
+    "dashscope"
   ],
   "context_window": 32768,
   "supports_vision": true,

@@ -212,6 +212,7 @@ def _labels_for_range(
     blocks: list[PacketBlock],
 ) -> list[str]:
     ordered_labels = [item.label for item in blocks]
+    block_by_label = {item.label: item for item in blocks}
     try:
         start_index = ordered_labels.index(range_result.start_label)
         end_index = ordered_labels.index(range_result.end_label)
@@ -220,10 +221,22 @@ def _labels_for_range(
             f"Range labels not found for q{range_result.question_no}: {range_result.start_label} -> {range_result.end_label}"
         ) from exc
     if start_index > end_index:
+        end_block = block_by_label.get(range_result.end_label)
+        if range_result.end_label in range_result.visual_labels or _is_page_or_visual_label(end_block):
+            return [range_result.start_label]
         raise ValidationError(
             f"Range start/end order invalid for q{range_result.question_no}: {range_result.start_label} -> {range_result.end_label}"
         )
     return ordered_labels[start_index : end_index + 1]
+
+
+def _is_page_or_visual_label(block: PacketBlock | None) -> bool:
+    if block is None:
+        return False
+    kind = (block.kind or "").lower()
+    if "image" in kind or "table" in kind or "chart" in kind:
+        return True
+    return "-P" in block.label
 
 
 def _surface_labels(labels: list[str], question_index: dict[str, PacketBlock]) -> list[str]:
@@ -238,8 +251,10 @@ def _surface_labels(labels: list[str], question_index: dict[str, PacketBlock]) -
 
 
 def _merge_labels(primary: list[str], extra: list[str], block_order: dict[str, tuple[int, int, str]]) -> list[str]:
-    merged = list(dict.fromkeys(primary + extra))
-    return sorted(merged, key=lambda label: block_order.get(label, (10**9, 10**9, label)))
+    result = list(dict.fromkeys(primary))
+    extras = [label for label in dict.fromkeys(extra) if label not in result]
+    result.extend(sorted(extras, key=lambda label: block_order.get(label, (10**9, 10**9, label))))
+    return result
 
 
 def _block_order_map(blocks: list[PacketBlock]) -> dict[str, tuple[int, int, str]]:

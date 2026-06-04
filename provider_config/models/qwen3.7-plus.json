@@ -1,8 +1,7 @@
 {
   "name": "qwen3.7-plus",
   "providers": [
-    "dashscope",
-    "bailian"
+    "dashscope"
   ],
   "context_window": 1000000,
   "supports_vision": false,

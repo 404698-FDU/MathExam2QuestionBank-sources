@@ -56,11 +56,11 @@ v12 不做以下事情：
       step_pipeline_processing_flow.md
   call_specs/
     README.zh-CN.md
-    step2_question_ranges.bailian.qwen-vl-max.tool_calling.json
-    step3_question_json.bailian.qwen-vl-max.tool_calling.json
-    step35_latex_audit.bailian.qwen3.5-flash.tool_calling.json
-    step4_visual_assets.bailian.qwen-vl-max.tool_calling.json
-    step4_answer_tables.bailian.qwen-vl-max.tool_calling.json
+    step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json
+    step3_question_json.dashscope.qwen3.5-flash.tool_calling.json
+    step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json
+    step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json
+    step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json
   tool_schemas/
     step2_question_ranges.schema.json
     question_record.schema.json

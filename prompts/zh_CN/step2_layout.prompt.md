@@ -20,6 +20,7 @@ source_doc: ../../doc/zh_CN/step2_layout.md
 
 任务：
 - 对每个可见的顶层题号，输出起始标签和结束标签。
+- start_label 和 end_label 只能填写有阅读顺序的 OCR 内容块标签，通常是 `*-B*`；不得把整页截图、页图、范围外图片、表格或图表标签作为 start_label/end_label。
 - 不要在范围检测阶段区分题干块和答案块。
 - 不要分类图、表或图片；如果某个图、表或图片明显属于该题但因跨栏、页首浮动等版面原因不在 start_label 到 end_label 的连续范围内，只把它的标签填入 visual_labels。
 - 不得解题、改写、推断缺失题目或修正 OCR。

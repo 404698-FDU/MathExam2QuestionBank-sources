@@ -1,5 +1,37 @@
 # exam-import 重构记录
 
+## 2026-06-05
+
+### 修复 qwen3.5-flash 模型配置 JSON
+
+修改范围：
+
+- 修改 `provider_config/models/qwen3.5-flash.json`
+- 修改 `provider_config/models/qwen-vl-max.json`
+- 修改 `call_specs/*.json`
+- 重命名默认 `call_specs/*.json` 为 DashScope / `qwen3.5-flash` 文件名
+- 修改 `exam_import/prompts/registry.py`
+- 修改 `skills/exam-import/assets/import_spec.template.json`
+- 修改 `skills/exam-import/references/import-spec.md`
+
+修改原因：
+
+- 用户要求本次导入每一步都调用 DashScope 的 `qwen3.5-flash`。
+- 本地读取配置时发现 `providers` 数组中存在 `"dashscope"x` 语法错误，会阻断模型配置解析。
+
+影响：
+
+- `qwen3.5-flash` 可被 `dashscope` provider 正常解析。
+- 根目录默认 call specs 和 skill 模板统一为 DashScope / `qwen3.5-flash`。
+- 算法/流程类 prompt 引用改为读取 `doc/zh_CN/`，避免与运行时 `*.prompt.md` 混放。
+- Step2 范围构建器在模型误把页图/视觉标签填入反向 `end_label` 时，不再把该标签作为文本边界，而是保留为视觉标签；合并标签时核心范围保持在前，范围外视觉标签追加到后面。
+- 修复 Step4 runtime 汇总时把 `Step4SyncSummary` dataclass 当作 mapping 展开的错误，改为显式 `to_dict()`。
+- Step4 答案表 schema 对由 `role` 唯一决定的 `target_field` 做确定性归一化，避免模型把 `analysis_table` 的目标字段误填为答案字段时中断；非答案表若仍携带 entries 继续失败。
+
+验证：
+
+- 待随本次导入前置执行 contract check。
+
 ## 2026-06-04
 
 ### 将 V12 runtime 固化为 sources 仓库并默认 Step1 调用 MinerU

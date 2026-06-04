@@ -28,36 +28,24 @@
 
 ## 当前示例
 
-当前提供的是百炼兼容模式示例：
+当前提供的是 DashScope 兼容模式示例，默认每一步使用 `qwen3.5-flash`：
 
-- `step2_question_ranges.bailian.qwen-vl-max.tool_calling.json`
-- `step3_question_json.bailian.qwen-vl-max.tool_calling.json`
-- `step35_latex_audit.bailian.qwen3.5-flash.tool_calling.json`
-- `step4_visual_assets.bailian.qwen-vl-max.tool_calling.json`
-- `step4_answer_tables.bailian.qwen-vl-max.tool_calling.json`
+- `step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json`
+- `step3_question_json.dashscope.qwen3.5-flash.tool_calling.json`
+- `step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json`
+- `step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json`
+- `step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json`
 
 ## provider 与 model 约束
 
 当前 v12 运行时允许：
 
-- `qwen-vl-max`：`dashscope`、`bailian`
-- `qwen3.5-flash`：`dashscope`、`bailian`
-- `qwen3.6-plus`：`dashscope`、`bailian`
-- `qwen3.7-plus`：`dashscope`、`bailian`
+- `qwen-vl-max`：`dashscope`
+- `qwen3.5-flash`：`dashscope`
+- `qwen3.6-plus`：`dashscope`
+- `qwen3.7-plus`：`dashscope`
 - `Qwen/Qwen3.6-27B`：`siliconflow`
 - `gpt-4.1-mini`：`openai`
-
-如果要改成 DashScope 直连版本，通常只需要把示例中的：
-
-```json
-"provider": "bailian"
-```
-
-改成：
-
-```json
-"provider": "dashscope"
-```
 
 前提是该 model 在 `provider_config/models/*.json` 中允许该 provider。
 
@@ -71,14 +59,14 @@
 ```json
 {
   "llm": {
-    "provider": "bailian",
-    "primary_model": "qwen-vl-max",
+    "provider": "dashscope",
+    "primary_model": "qwen3.5-flash",
     "call_specs": {
-      "step2_question_ranges": "assets/v12_runtime/call_specs/step2_question_ranges.bailian.qwen-vl-max.tool_calling.json",
-      "step3_question_json": "assets/v12_runtime/call_specs/step3_question_json.bailian.qwen-vl-max.tool_calling.json",
-      "step35_latex_audit": "assets/v12_runtime/call_specs/step35_latex_audit.bailian.qwen3.5-flash.tool_calling.json",
-      "step4_visual_assets": "assets/v12_runtime/call_specs/step4_visual_assets.bailian.qwen-vl-max.tool_calling.json",
-      "step4_answer_tables": "assets/v12_runtime/call_specs/step4_answer_tables.bailian.qwen-vl-max.tool_calling.json"
+      "step2_question_ranges": "call_specs/step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json",
+      "step3_question_json": "call_specs/step3_question_json.dashscope.qwen3.5-flash.tool_calling.json",
+      "step35_latex_audit": "call_specs/step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json",
+      "step4_visual_assets": "call_specs/step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json",
+      "step4_answer_tables": "call_specs/step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json"
     }
   }
 }

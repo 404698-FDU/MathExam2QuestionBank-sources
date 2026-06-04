@@ -105,7 +105,7 @@ def run_step4(
         answer_table_review=answer_table_review,
     )
     summary = {
-        **sync_summary,
+        **sync_summary.to_dict(),
         "asset_count": len(visual_review.assets),
         "risk_count": len(visual_review.risks),
         "answer_table_count": len(answer_table_review.tables) if answer_table_review else 0,

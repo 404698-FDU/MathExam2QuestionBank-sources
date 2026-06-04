@@ -41,17 +41,17 @@ Use this reference when converting a user request into a v12 machine-checkable i
     "enable_ocr": true
   },
   "llm": {
-    "provider": "bailian",
-    "primary_model": "qwen-vl-max",
+    "provider": "dashscope",
+    "primary_model": "qwen3.5-flash",
     "timeout": 180,
     "max_workers": 8,
     "enable_thinking": false,
     "call_specs": {
-      "step2_question_ranges": "call_specs/step2_question_ranges.bailian.qwen-vl-max.tool_calling.json",
-      "step3_question_json": "call_specs/step3_question_json.bailian.qwen-vl-max.tool_calling.json",
-      "step35_latex_audit": "call_specs/step35_latex_audit.bailian.qwen3.5-flash.tool_calling.json",
-      "step4_visual_assets": "call_specs/step4_visual_assets.bailian.qwen-vl-max.tool_calling.json",
-      "step4_answer_tables": "call_specs/step4_answer_tables.bailian.qwen-vl-max.tool_calling.json"
+      "step2_question_ranges": "call_specs/step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json",
+      "step3_question_json": "call_specs/step3_question_json.dashscope.qwen3.5-flash.tool_calling.json",
+      "step35_latex_audit": "call_specs/step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json",
+      "step4_visual_assets": "call_specs/step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json",
+      "step4_answer_tables": "call_specs/step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json"
     }
   },
   "cache_policy": {

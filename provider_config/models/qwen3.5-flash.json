@@ -1,8 +1,7 @@
 {
   "name": "qwen3.5-flash",
   "providers": [
-    "dashscope",
-    "bailian"
+    "dashscope"
   ],
   "context_window": 131072,
   "supports_vision": true,

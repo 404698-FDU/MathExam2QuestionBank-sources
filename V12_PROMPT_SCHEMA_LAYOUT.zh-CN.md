@@ -190,7 +190,7 @@ assets/v12_runtime/
   例如 `QuestionRecord`
 
 - `call_spec_path`
-  例如 `assets/v12_runtime/call_specs/step3_question_json.bailian.qwen-vl-max.tool_calling.json`
+  例如 `call_specs/step3_question_json.dashscope.qwen3.5-flash.tool_calling.json`
 
 运行时步骤通过 `prompt_ref`、`tool_name`、`tool_schema_ref` 和 `call_spec_path` 组合取资源，不直接在步骤代码里复制大段 prompt 或手写另一套字段解释。
 
