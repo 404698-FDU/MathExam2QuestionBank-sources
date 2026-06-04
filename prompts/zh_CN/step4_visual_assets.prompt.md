@@ -28,6 +28,9 @@ source_doc: ../../doc/zh_CN/step4_assets.md
 
 规则：
 - 每个输入 assets[] 项必须输出一次。
+- 输出的 assets[].label 只能来自输入 compact_json 的 assets[].label，严禁自行发明、改写或补全资产标签。
+- 如果认为 Step3 需要某个图、表或图表，但输入 assets[] 中没有对应 label，不得新增占位；在 risks 中记录。
+- placeholder 中的 src 必须等于当前 assets[].label，例如 label 为 Q-V03-P01 时只能写 <img src="Q-V03-P01">。
 - 一个资产只能有一个最终归属；不得把同一个 label 同时归到多个题号或多个字段。
 - 如果同一个资产在 Step3 多处出现，占位对账必须选择唯一正确最终位置；其他位置视为重复或误放占位，由同步阶段根据 step3_placeholder_refs 删除。
 - Step3 已经负责把资产占位写入字段；Step4 默认只确认或纠错，不要重新组织正文。

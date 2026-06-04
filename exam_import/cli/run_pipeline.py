@@ -21,7 +21,12 @@ from exam_import.schemas.qa_alignment import QAAlignmentDocument, load_qa_alignm
 from exam_import.schemas.question_record import QuestionRecord
 from exam_import.steps.step2_runtime import run_step2
 from exam_import.steps.step35_normalize import audit_record, call_step35_record, write_step35_outputs
-from exam_import.steps.step3_question_json import Step3Job, call_step3_job, write_step3_outputs
+from exam_import.steps.step3_question_json import (
+    Step3Job,
+    call_step3_job,
+    sanitize_step3_asset_placeholders,
+    write_step3_outputs,
+)
 from exam_import.steps.step4_runtime import run_step4
 from exam_import.steps.step5_render import render_question_bank
 
@@ -231,6 +236,7 @@ def _run_step3(
         except Exception as exc:
             errors.append({"question_no": row.question_no, "error": str(exc)})
             continue
+        record = sanitize_step3_asset_placeholders(record=record, qa_alignment=qa_alignment)
         records.append(record)
     if not records:
         raise RuntimeError("Step3 produced no valid question records")

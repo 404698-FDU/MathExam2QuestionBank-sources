@@ -52,6 +52,8 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 如果某个位置需要插入图片、表格或图表，使用 <img src="...">、<table src="..."> 或 <chart src="...">。
 - 示例：<img src="Q-V02-P01">、<table src="M-V02-T01">、<chart src="M-V02-C01">。
+- 不得自行发明 <img src="...">、<table src="..."> 或 <chart src="..."> 的 src 标签；只有输入裁剪图中明确标注或上游上下文提供的资产标签才允许使用。
+- 如果能看出原题有图片、表格或图表，但没有可确认的资产标签，不要写占位标签；在 issues 中记录 content_missing。
 
 4. options_markdown
 - 按 stem_markdown 中 <options no="..."> 出现顺序填写。
@@ -72,6 +74,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 可使用 <img src="...">、<table src="..."> 或 <chart src="..."> 表示原文中的图片、表格或图表。
+- 不得自行发明资产标签；没有可确认标签时不要写占位标签，并在 issues 中记录 content_missing。
 
 6. analysis_markdown
 - 填答案/解析图中实际可见的完整解析内容，包括解答步骤、证明过程、计算过程、思路分析、点评、验证和结论理由。
@@ -83,6 +86,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 可使用 <img src="...">、<table src="..."> 或 <chart src="..."> 表示原文中的图片、表格或图表。
+- 不得自行发明资产标签；没有可确认标签时不要写占位标签，并在 issues 中记录 content_missing。
 
 7. issues
 - 没有问题时输出空数组 []。

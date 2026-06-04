@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from exam_import.core.io import data_uri, write_json
@@ -15,8 +16,13 @@ from exam_import.llm import (
 from exam_import.llm.client import LLMClient, LLMResponse
 from exam_import.llm.request_builder import build_request_payload
 from exam_import.prompts.loader import PromptLoader
+from exam_import.schemas.common import IssueRecord
 from exam_import.schemas.common import ValidationError
+from exam_import.schemas.qa_alignment import QAAlignmentDocument
 from exam_import.schemas.question_record import QuestionRecord
+
+
+ASSET_PLACEHOLDER_RE = re.compile(r"<(img|table|chart)\s+src=\"([^\"]+)\">")
 
 
 @dataclass(frozen=True)
@@ -103,6 +109,70 @@ def parse_step3_response(
             f"Step3 returned question_no={record.question_no}, expected {expected_question_no}"
         )
     return record
+
+
+def sanitize_step3_asset_placeholders(
+    *,
+    record: QuestionRecord,
+    qa_alignment: QAAlignmentDocument,
+) -> QuestionRecord:
+    allowed_labels = _allowed_asset_labels(record.question_no, qa_alignment)
+    payload = record.to_dict()
+    removed_labels: set[str] = set()
+
+    for field_name in ("stem_markdown", "answer_markdown", "analysis_markdown"):
+        payload[field_name], removed = _filter_asset_placeholders(payload[field_name], allowed_labels)
+        removed_labels.update(removed)
+
+    for group in payload["options_markdown"]:
+        for option in group["options"]:
+            option["content_markdown"], removed = _filter_asset_placeholders(option["content_markdown"], allowed_labels)
+            removed_labels.update(removed)
+
+    if removed_labels:
+        payload["issues"].append(
+            IssueRecord(
+                type="content_missing",
+                severity="warning",
+                message="已移除模型生成但 Step2 未提供映射的资产占位标签：" + ", ".join(sorted(removed_labels)),
+            ).to_dict()
+        )
+    return QuestionRecord.from_dict(payload)
+
+
+def _allowed_asset_labels(question_no: int, qa_alignment: QAAlignmentDocument) -> set[str]:
+    for row in qa_alignment.qa_alignment:
+        if row.question_no != question_no:
+            continue
+        labels = set(row.question.labels)
+        for item in row.answer.items:
+            labels.update(item.labels)
+        return {label for label in labels if _looks_like_asset_label(label)}
+    return set()
+
+
+def _looks_like_asset_label(label: str) -> bool:
+    return "-P" in label or "-T" in label or "-C" in label
+
+
+def _filter_asset_placeholders(segments: list[str], allowed_labels: set[str]) -> tuple[list[str], set[str]]:
+    removed_labels: set[str] = set()
+    filtered: list[str] = []
+    for segment in segments:
+        matches = ASSET_PLACEHOLDER_RE.findall(segment)
+        if matches and any(label not in allowed_labels for _, label in matches):
+            for _, label in matches:
+                if label not in allowed_labels:
+                    removed_labels.add(label)
+            stripped = ASSET_PLACEHOLDER_RE.sub(
+                lambda match: match.group(0) if match.group(2) in allowed_labels else "",
+                segment,
+            ).strip()
+            if stripped:
+                filtered.append(stripped)
+            continue
+        filtered.append(segment)
+    return filtered, removed_labels
 
 
 def write_step3_outputs(

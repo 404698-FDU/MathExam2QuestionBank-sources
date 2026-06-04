@@ -2,6 +2,34 @@
 
 ## 2026-06-05
 
+### 禁止 Step3/Step4 自造资产标签
+
+修改范围：
+
+- 修改 `prompts/zh_CN/step3_question_json.prompt.md`
+- 修改 `prompts/zh_CN/step4_visual_assets.prompt.md`
+- 修改 `exam_import/steps/step3_question_json.py`
+- 修改 `exam_import/cli/run_pipeline.py`
+- 修改 `exam_import/steps/step4_runtime.py`
+
+修改原因：
+
+- 已完成的导入 smoke test 中，Step5 渲染发现 7 个资产标签缺失映射，原因是模型输出了 Step2 source packets 中不存在的标签，例如 `Q-V02-P01`、`M-V02-T01`。
+- Step5 不应猜测标签；Step3/Step4 也不应发明资产标签。
+
+影响：
+
+- Step3 prompt 明确禁止自造 `<img/table/chart src>` 标签。
+- Step3 结果写入前会基于 `qa_alignment` 的真实标签集合移除未知资产占位，并追加 `content_missing` warning issue。
+- Step4 prompt 明确要求 `assets[].label` 和 placeholder `src` 只能来自 compact input 的 `assets[].label`。
+- Step4 runtime 会把模型返回但 compact input 中不存在的资产标签，或 placeholder `src` 与资产标签不一致的结果转为 warning risk，不同步到 question bank。
+
+验证：
+
+- 已运行默认模板 spec 校验，结果通过。
+- 已运行 contract check，结果通过。
+- 已对 `exam_import/**/*.py` 执行源码级编译检查，结果通过：56 个 Python 文件。
+
 ### 收敛 PromptLoader 职责为只读取模型 prompt
 
 修改范围：

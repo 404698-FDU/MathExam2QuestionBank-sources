@@ -12,7 +12,7 @@ from exam_import.schemas.answer_table import AnswerTableReview
 from exam_import.schemas.qa_alignment import QAAlignmentDocument
 from exam_import.schemas.question_ranges import QuestionRangesResult
 from exam_import.schemas.question_record import QuestionRecord
-from exam_import.schemas.visual_asset import VisualAssetReview
+from exam_import.schemas.visual_asset import VisualAssetReview, VisualAssetRisk
 from exam_import.sources.ocr_blocks import load_packets
 from .step4_assets import call_answer_table_review, call_visual_asset_review
 from .step45_sync import sync_step4_results
@@ -75,6 +75,7 @@ def run_step4(
             prompt_loader=prompt_loader,
             env=env,
         )
+        review = _filter_unmapped_visual_assets(review, job.compact_payload)
         visual_assets.extend(item.to_dict() for item in review.assets)
         visual_risks.extend(item.to_dict() for item in review.risks)
     visual_review = VisualAssetReview.from_dict({"assets": visual_assets, "risks": visual_risks})
@@ -135,6 +136,54 @@ def build_step4_inputs(
         [job.compact_payload for job in visual_jobs],
         [job.compact_payload for job in answer_jobs],
     )
+
+
+def _filter_unmapped_visual_assets(review: VisualAssetReview, compact_payload: dict[str, Any]) -> VisualAssetReview:
+    valid_labels = {
+        str(asset.get("label") or "").strip()
+        for asset in compact_payload.get("assets") or []
+        if str(asset.get("label") or "").strip()
+    }
+    if not valid_labels:
+        return VisualAssetReview.from_dict(
+            {
+                "assets": [],
+                "risks": [
+                    item.to_dict() for item in review.risks
+                ],
+            }
+        )
+    valid_assets = []
+    risks = [item.to_dict() for item in review.risks]
+    for asset in review.assets:
+        if asset.label in valid_labels:
+            placeholder_label = _placeholder_src_label(asset.placeholder)
+            if placeholder_label and placeholder_label != asset.label:
+                risks.append(
+                    VisualAssetRisk(
+                        label=asset.label,
+                        severity="warning",
+                        reason=f"模型返回的 placeholder src={placeholder_label} 与资产标签不一致，已阻止同步到 question bank。",
+                    ).to_dict()
+                )
+                continue
+            valid_assets.append(asset.to_dict())
+            continue
+        risks.append(
+            VisualAssetRisk(
+                label=asset.label,
+                severity="warning",
+                reason="模型返回了 Step4 compact input 中不存在的资产标签，已阻止同步到 question bank。",
+            ).to_dict()
+        )
+    return VisualAssetReview.from_dict({"assets": valid_assets, "risks": risks})
+
+
+def _placeholder_src_label(placeholder: str) -> str:
+    match = PLACEHOLDER_RE.fullmatch((placeholder or "").strip())
+    if not match:
+        return ""
+    return match.group(2)
 
 
 def _build_step4_jobs(
