@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import re
 from typing import Any, Mapping
 
 from .common import (
@@ -16,12 +17,14 @@ from .common import (
 
 
 QUESTION_RECORD_SCHEMA_VERSION = "image_only_question_standardization_v1"
+OPTION_TAG_RE = re.compile(r'<options no="([^"]+)"\s*/?>')
+OPTION_TAG_STRIP_RE = re.compile(r'\s*<options no="[^"]+"\s*/?>\s*')
 
 
 @dataclass(frozen=True)
 class OptionItem:
     label: str
-    content_markdown: list[str]
+    content_latex: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -30,7 +33,7 @@ class OptionItem:
     def from_dict(cls, payload: Mapping[str, Any]) -> "OptionItem":
         return cls(
             label=expect_string(payload, "label"),
-            content_markdown=expect_string_list(payload, "content_markdown", allow_empty=False),
+            content_latex=expect_string_list(payload, "content_latex", allow_empty=False),
         )
 
 
@@ -46,7 +49,7 @@ class OptionGroup:
     def from_dict(cls, payload: Mapping[str, Any]) -> "OptionGroup":
         options_payload = payload.get("options")
         if not isinstance(options_payload, list) or not options_payload:
-            raise ValidationError("options_markdown[].options must be a non-empty array")
+            raise ValidationError("options_latex[].options must be a non-empty array")
         return cls(
             no=expect_string(payload, "no"),
             options=[
@@ -60,20 +63,20 @@ class OptionGroup:
 class QuestionRecord:
     schema_version: str
     question_no: int
-    stem_markdown: list[str]
-    options_markdown: list[OptionGroup]
-    answer_markdown: list[str]
-    analysis_markdown: list[str]
+    stem_latex: list[str]
+    options_latex: list[OptionGroup]
+    answer_latex: list[str]
+    analysis_latex: list[str]
     issues: list[IssueRecord]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "question_no": self.question_no,
-            "stem_markdown": self.stem_markdown,
-            "options_markdown": [group.to_dict() for group in self.options_markdown],
-            "answer_markdown": self.answer_markdown,
-            "analysis_markdown": self.analysis_markdown,
+            "stem_latex": self.stem_latex,
+            "options_latex": [group.to_dict() for group in self.options_latex],
+            "answer_latex": self.answer_latex,
+            "analysis_latex": self.analysis_latex,
             "issues": [issue.to_dict() for issue in self.issues],
         }
 
@@ -87,19 +90,19 @@ class QuestionRecord:
         question_no = payload.get("question_no")
         if not isinstance(question_no, int) or question_no < 1:
             raise ValidationError("question_no must be a positive integer")
-        options_payload = payload.get("options_markdown")
+        options_payload = payload.get("options_latex")
         if not isinstance(options_payload, list):
-            raise ValidationError("options_markdown must be an array")
+            raise ValidationError("options_latex must be an array")
         return cls(
             schema_version=schema_version,
             question_no=question_no,
-            stem_markdown=expect_string_list(payload, "stem_markdown"),
-            options_markdown=[
-                OptionGroup.from_dict(expect_mapping(item, f"options_markdown[{index}]"))
+            stem_latex=expect_string_list(payload, "stem_latex"),
+            options_latex=[
+                OptionGroup.from_dict(expect_mapping(item, f"options_latex[{index}]"))
                 for index, item in enumerate(options_payload)
             ],
-            answer_markdown=expect_string_list(payload, "answer_markdown"),
-            analysis_markdown=expect_string_list(payload, "analysis_markdown"),
+            answer_latex=expect_string_list(payload, "answer_latex"),
+            analysis_latex=expect_string_list(payload, "analysis_latex"),
             issues=expect_issue_list(payload, "issues"),
         )
 
@@ -107,3 +110,35 @@ class QuestionRecord:
 def load_question_record(path: Path) -> QuestionRecord:
     payload = expect_mapping(read_json_file(path), str(path))
     return QuestionRecord.from_dict(payload)
+
+
+def ensure_options_placeholders_in_payload(payload: dict[str, Any]) -> None:
+    stem = payload.get("stem_latex")
+    options = payload.get("options_latex")
+    if not isinstance(stem, list) or not isinstance(options, list) or not options:
+        return
+
+    expected_nos: list[str] = []
+    for group in options:
+        if not isinstance(group, Mapping):
+            continue
+        value = group.get("no")
+        if isinstance(value, str) and value.strip():
+            expected_nos.append(value.strip())
+    if not expected_nos:
+        return
+
+    actual_nos: list[str] = []
+    for segment in stem:
+        actual_nos.extend(OPTION_TAG_RE.findall(str(segment)))
+
+    if actual_nos == expected_nos and len(actual_nos) == len(set(actual_nos)):
+        return
+
+    cleaned_stem: list[str] = []
+    for segment in stem:
+        cleaned = OPTION_TAG_STRIP_RE.sub(" ", str(segment)).strip()
+        if cleaned:
+            cleaned_stem.append(cleaned)
+    cleaned_stem.extend(f'<options no="{option_no}">' for option_no in expected_nos)
+    payload["stem_latex"] = cleaned_stem

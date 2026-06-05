@@ -58,7 +58,7 @@ v12 不做以下事情：
     README.zh-CN.md
     step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json
     step3_question_json.dashscope.qwen3.5-flash.tool_calling.json
-    step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json
+    step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json
     step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json
     step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json
   tool_schemas/

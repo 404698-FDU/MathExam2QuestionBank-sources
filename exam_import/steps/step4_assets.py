@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from exam_import.core.io import data_uri, write_json
@@ -19,6 +20,10 @@ from exam_import.schemas.answer_table import AnswerTableReview
 from exam_import.schemas.common import ValidationError
 from exam_import.schemas.question_record import QuestionRecord
 from exam_import.schemas.visual_asset import VisualAssetReview
+
+
+PLACEHOLDER_SRC_RE = re.compile(r'<(?:img|table|chart)\s+src="([^"]+)"\s*/?>')
+PLACEHOLDER_FIELDS = ("stem_latex", "answer_latex", "analysis_latex")
 
 
 @dataclass(frozen=True)
@@ -190,10 +195,10 @@ def apply_step4_sync(
                 record = payloads.get(entry.question_no)
                 if not record:
                     continue
-                for item in entry.answer_markdown:
-                    answer_markdown = record["answer_markdown"]
-                    if item not in answer_markdown:
-                        answer_markdown.append(item)
+                for item in entry.answer_latex:
+                    answer_latex = record["answer_latex"]
+                    if item not in answer_latex:
+                        answer_latex.append(item)
                         merged_answers += 1
                         changed_questions.add(entry.question_no)
 
@@ -237,7 +242,7 @@ def _append_placeholder(record: dict[str, Any], asset: Any) -> bool:
     if not placeholder:
         return False
     target_field = asset.target_field
-    if target_field == "options_markdown":
+    if target_field == "options_latex":
         option_segments = _locate_option_segments(record, asset.option_group_no, asset.option_label)
         if placeholder not in option_segments:
             option_segments.append(placeholder)
@@ -259,40 +264,58 @@ def _remove_placeholder(
 ) -> int:
     if not placeholder:
         return 0
+    src = _placeholder_src(placeholder)
     removed = 0
-    if source_field == "options_markdown":
+    if source_field == "options_latex":
         segments = _locate_option_segments(record, option_group_no, option_label)
-        while placeholder in segments:
-            segments.remove(placeholder)
-            removed += 1
-        return removed
+        return _remove_matching_placeholders(segments, placeholder, src)
     if source_field == "none":
-        for field_name in ("stem_markdown", "answer_markdown", "analysis_markdown"):
+        for field_name in PLACEHOLDER_FIELDS:
             segments = record[field_name]
-            while placeholder in segments:
-                segments.remove(placeholder)
-                removed += 1
-        for group in record["options_markdown"]:
+            removed += _remove_matching_placeholders(segments, placeholder, src)
+        for group in record["options_latex"]:
             for option in group["options"]:
-                segments = option["content_markdown"]
-                while placeholder in segments:
-                    segments.remove(placeholder)
-                    removed += 1
+                segments = option["content_latex"]
+                removed += _remove_matching_placeholders(segments, placeholder, src)
         return removed
     segments = record[source_field]
-    while placeholder in segments:
-        segments.remove(placeholder)
-        removed += 1
+    return _remove_matching_placeholders(segments, placeholder, src)
+
+
+def _placeholder_src(placeholder: str) -> str:
+    match = PLACEHOLDER_SRC_RE.fullmatch(placeholder.strip())
+    return match.group(1) if match else ""
+
+
+def _remove_matching_placeholders(segments: list[str], placeholder: str, src: str) -> int:
+    removed = 0
+    kept: list[str] = []
+    for segment in segments:
+        if _is_matching_placeholder(segment, placeholder, src):
+            removed += 1
+        else:
+            kept.append(segment)
+    if removed:
+        segments[:] = kept
     return removed
 
 
+def _is_matching_placeholder(segment: str, placeholder: str, src: str) -> bool:
+    if segment == placeholder:
+        return True
+    if not src:
+        return False
+    match = PLACEHOLDER_SRC_RE.fullmatch(segment.strip())
+    return bool(match and match.group(1) == src)
+
+
 def _locate_option_segments(record: dict[str, Any], option_group_no: str, option_label: str) -> list[str]:
-    for group in record["options_markdown"]:
+    for group in record["options_latex"]:
         if group["no"] != option_group_no:
             continue
         for option in group["options"]:
             if option["label"] == option_label:
-                return option["content_markdown"]
+                return option["content_latex"]
     raise ValidationError(
         f"Option target not found for option_group_no={option_group_no!r}, option_label={option_label!r}"
     )

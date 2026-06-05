@@ -2,6 +2,512 @@
 
 ## 2026-06-05
 
+### 修复 Step4 反面透印资产和占位同步
+
+修改范围：
+
+- 修改 `exam_import/steps/step4_runtime.py`
+- 修改 `exam_import/steps/step4_assets.py`
+- 修改 `prompts/zh_CN/step4_visual_assets.prompt.md`
+- 修改 `doc/zh_CN/step4_assets.md`
+- 更新 `runs/question_bank/shanghai_2009_gaokao_science_paper_answer/question_bank.json`
+- 更新 `runs/step2_exam_blocks/shanghai_2009_gaokao_science_paper_answer_raw_units/visual_asset_assignment.json`
+- 更新 `runs/step2_exam_blocks/shanghai_2009_gaokao_science_paper_answer_raw_units/step4_question_bank_sync.json`
+- 更新 `runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/*`
+- 新增/更新 `runs/reports/shanghai_2009_gaokao_science_paper_answer_step4_bleedthrough_fix.json`
+
+修改原因：
+
+- 2009 上海高考理科 Q19 中，`Q-V04-P02` 是反面透回来的低对比图形，不属于当前题，但 Step3 将其写入题干，Step4 也曾把它误判为合法图片。
+- Step4 同步阶段原来只按完整 placeholder 字符串删除，占位从 `<img src="...">` 修正为 `<chart src="...">` 时会留下同一 `src` 的旧标签，导致重复渲染。
+- Step4 模型有时会输出 `target_field=options_latex` 但不填写 `option_label`，例如 Q18 的题干图 `Q-V03-P01` 被误尝试移入选项，导致同步阶段失败。
+
+影响：
+
+- Step4 compact input 现在为图片/图表资产加入 `source_image_quality`，基于原始 OCR 导出的资产图计算平均亮度、灰度标准差、深色像素占比。
+- 当 `mean_luma>=248`、`std_luma<=12`、`dark_pixel_ratio<=0.005` 时，本地判定为低信号近空白资产，在模型结果写回前覆盖为 `remove_placeholder`，并在 Step4 risks 中记录证据。
+- Step4 同步删除占位时按同一 `src` 删除 `<img>`、`<chart>`、`<table>` 的所有标签变体，避免类型纠错后重复渲染。
+- `options_latex` 目标必须有具体 `option_label`；若模型未指定选项标签但 Step3 已有非选项字段占位，本地保留原字段，否则该页 Step4 job 失败并按重试规则重试。
+- Step4 prompt 和文档同步加入反面透印、低信号资产、无选项标签不得移入 options 的规则。
+
+验证：
+
+- 已通过 `python.exe -m compileall -q exam_import/steps/step4_runtime.py exam_import/steps/step4_assets.py`。
+- 已通过 `python.exe exam_import/cli/check_contracts.py` 静态契约检查。
+- Step4 input 检测仅 `Q-V04-P02` 命中低信号噪声：`mean_luma=252.963`，`std_luma=6.205`，`dark_pixel_ratio=0.001238`；`Q-V04-P01`、`Q-V03-P01`、`Q-V01-P01` 均未命中。
+- 已从当前 question bank 重跑 Step4 和 Step5：Step4 `changed_question_count=1`，`removed_placeholder_count=1`，`asset_count=6`，`risk_count=2`，`retry_count=0`，`attempt_count=5`，`elapsed_seconds=9.151`。
+- Step5：`asset_reference_count=5`，`exported_asset_count=5`，`missing_asset_count=0`，`question_crop_count=52`，`answer_crop_count=27`。
+- Q19 最终题干只保留 `<img src="Q-V04-P01">`；`Q-V04-P02` 在 question bank、assets manifest 和渲染 HTML 中均不存在。
+- Q18 的 `Q-V03-P01` 保留在 `stem_latex`，未被误移入选项；Q4 的 `Q-V01-P01` 保持单一占位。
+- 备份目录：`runs/backups/shanghai_2009_gaokao_science_paper_answer_before_step4_bleedthrough_fix/`。
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/index.html`。
+
+### 正式切换 Step3.5 默认模型为 qwen3.7-plus
+
+修改范围：
+
+- 修改 `provider_config/models/qwen3.7-plus.json`
+- 新增 `call_specs/step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`
+- 新增 `runs/call_specs/step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`
+- 修改 `runs/specs/shanghai_2009_gaokao_science_paper_answer.json`
+- 修改 `skills/exam-import/assets/import_spec.template.json`
+- 修改 `call_specs/README.zh-CN.md`
+- 修改 `provider_config/README.zh-CN.md`
+- 修改 `V12_IMPLEMENTATION_NOTES.zh-CN.md`
+- 修改 `V12_REFACTOR_ARCHITECTURE.zh-CN.md`
+
+修改原因：
+
+- 用户要求将 Step3.5 使用 `qwen3.7-plus` 的测试结果切换为正式导入默认配置。
+- 2009 上海高考理科隔离测试中，`qwen3.7-plus` 对 Step3.5 `tool_calling` 实测成功：
+  - `question_count=23`
+  - `normalized_count=23`
+  - `error_count=0`
+  - `$` 不配平、LaTeX 命令双重转义、`__<blank>__` 残留均为 `0`
+
+影响：
+
+- `qwen3.7-plus` 模型配置正式开放 `tool_calling`。
+- 新增正式 Step3.5 call spec：`step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`。
+- 默认 import spec 模板中，只有 Step3.5 改用 `qwen3.7-plus`；Step2、Step3、Step4 仍使用 `qwen3.5-flash`。
+- 当前 active 2009 run spec 的 Step3.5 call spec 同步切换为 `runs/call_specs/step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`，方便后续重跑时沿用正式配置。
+- `primary_model` 暂不改动，避免误表示全流程所有步骤都切到 `qwen3.7-plus`。
+
+验证：
+
+- 已通过独立 probe 验证 `qwen3.7-plus` 可返回 `submit_step3_5_record` 工具调用。
+- 后续已运行 `check_contracts.py` 校验 provider/model/call spec/prompt/tool schema 静态契约。
+
+### 使用 qwen3.7-plus Step3.5 结果刷新 2009 渲染页
+
+修改范围：
+
+- 更新 `runs/question_bank/shanghai_2009_gaokao_science_paper_answer/question_bank.json`
+- 更新 `runs/reviews_step3_5_latex_audit/shanghai_2009_gaokao_science_paper_answer/*`
+- 更新 `runs/step2_exam_blocks/shanghai_2009_gaokao_science_paper_answer_raw_units/visual_asset_assignment.json`
+- 更新 `runs/step2_exam_blocks/shanghai_2009_gaokao_science_paper_answer_raw_units/step4_question_bank_sync.json`
+- 更新 `runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/*`
+- 新增 `runs/reports/shanghai_2009_gaokao_science_paper_answer_render_switch_qwen37.json`
+
+修改原因：
+
+- 用户要求当前 2009 渲染页也切换到 `qwen3.7-plus` 的 Step3.5 结果。
+
+影响：
+
+- 从 `question_bank.before_step3_5_latex_audit.json` 作为 Step3 源记录重新运行 Step3.5。
+- Step3.5 使用正式 call spec：`runs/call_specs/step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`。
+- 随后全量重跑 Step4 和 Step5，当前 HTML 渲染页已被刷新。
+- 刷新前备份保存在 `runs/backups/shanghai_2009_gaokao_science_paper_answer_before_render_switch_qwen37/`。
+
+验证：
+
+- Step3.5：`question_count=23`，`normalized_count=23`，`before_finding_count=15`，`after_finding_count=8`，`error_count=0`，`worker_count=4`，`retry_count=0`，`attempt_count=23`，`elapsed_seconds=65.23`
+- Step4：`changed_question_count=4`，`added_placeholder_count=2`，`moved_placeholder_count=2`，`asset_count=6`，`risk_count=1`，`elapsed_seconds=6.634`
+- Step5：`question_count=23`，`asset_reference_count=6`，`exported_asset_count=6`，`missing_asset_count=0`，`question_crop_count=52`，`answer_crop_count=27`
+- 最终硬格式扫描：`odd_dollar_count=0`，`double_escaped_latex_command=0`，`raw_underline_around_blank=0`
+- 最终剩余本地 audit finding：`8`，均为 `math_condition_split_across_text_connector`
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/index.html`
+
+### 收紧 Step3 prompt 的选择题、共享答案表和数学环境规则
+
+修改范围：
+
+- 修改 `prompts/zh_CN/step3_question_json.prompt.md`
+- 修改 `doc/zh_CN/step3_question_json.md`
+
+修改原因：
+
+- 用户要求把现有 Step3 prompt 补上 4 条约束：
+  - `options_latex` 为空时禁止 `<choice_blank>`
+  - 无可见选项组时 `options_latex=[]`，不得猜选择题
+  - 共享答案表只抽当前题号，无法确定就报 issue
+  - 同一数学表达式不得拆出数学环境
+
+影响：
+
+- Step3 题干规则新增：
+  - 只有题面中存在可见选项组且原题确有选择题作答空位时，才允许输出 `<choice_blank>`。
+  - 无选项题一律使用 `<blank>`。
+  - 同一个跨行空位必须合并为一个占位，不能拆成多个 `<blank>` 或 `<choice_blank>`。
+  - 同一数学表达式必须完整放在一个数学环境内，不得把 `\overline`、`\frac`、`\sqrt`、`\begin{...}`、上下标或关系符号拆到数学环境外。
+- Step3 选项规则新增：
+  - 题面没有可见选项组时，`options_latex` 必须为 `[]`。
+  - 不得猜测为选择题或虚构选项组。
+  - `options_latex` 为空时，`stem_latex` 中禁止出现 `<choice_blank>`。
+- Step3 答案规则新增：
+  - 对多题共用答案表、答案列表或解析拼版，只允许提取当前题号对应内容。
+  - 无法确定当前题号对应项时，不得猜测，必须输出空数组并在 `issues` 中记录 `boundary_suspect` 或 `answer_missing`。
+
+验证：
+
+- 已逐项核对 `prompts/zh_CN/step3_question_json.prompt.md` 与 `doc/zh_CN/step3_question_json.md`，4 条约束均已同步写入。
+- 本次仅修改 prompt 与说明文档，不涉及 schema、runtime 或已生成产物，未重跑 pipeline。
+
+### 通过 skill 流程导入 hi_quality 2009 上海高考理科
+
+修改范围：
+
+- 新增 `runs/specs/shanghai_2009_gaokao_science_paper_answer.json`
+
+修改原因：
+
+- 用户要求导入 `hi_quality/2009` 的上海高考数学理科题面与答案 PDF，并指定 API key 目录为 `api_key/`、`workers = 24`。
+
+影响：
+
+- 本次新增 SPEC 使用 `paper_plus_answer`：
+  - `paper_pdf = hi_quality/2009/2009年上海高考数学理科真题试卷（PDF版）.pdf`
+  - `answer_pdf = hi_quality/2009/2009年上海高考数学答案_理科.pdf`
+- `run_id` 按既有命名体系固定为 `shanghai_2009_gaokao_science_paper_answer`。
+- `llm.max_workers` 按用户要求设置为 `24`。
+- API key 路径沿用：
+  - `mineru.token_file = api_key/.mineru_api_key`
+  - DashScope 运行时通过 `api_key/.dashscope_api_key` 注入环境变量
+
+验证：
+
+- 已运行 `python.exe -u code/sources/exam_import/cli/validate_spec.py --spec runs/specs/shanghai_2009_gaokao_science_paper_answer.json`，spec 通过。
+- 已运行 `source_import.py`：
+  - `paper`：`status=extracted`，`page_count=8`，`elapsed_seconds=23.516`
+  - `answer`：`status=extracted`，`page_count=4`，`elapsed_seconds=18.445`
+- 已注入 `api_key/.dashscope_api_key` 后运行 `run_pipeline.py`，完整 Step2-Step5 成功。
+- 真实运行结果：
+  - pipeline 总耗时：`elapsed_seconds=106.411`
+  - Step2：`question_count=23`，`answered_question_count=23`，`question_crop_count=52`，`answer_crop_count=27`，`elapsed_seconds=70.592`
+  - Step3：`question_count=23`，`success_count=23`，`error_count=0`，`worker_count=23`，`retry_count=0`，`attempt_count=23`，`elapsed_seconds=16.332`
+  - Step3.5：`question_count=23`，`normalized_count=23`，`before_finding_count=16`，`after_finding_count=10`，`error_count=0`，`worker_count=23`，`retry_count=1`，`attempt_count=24`，`elapsed_seconds=13.472`
+  - Step4：`changed_question_count=3`，`added_placeholder_count=3`，`asset_count=6`，`risk_count=0`，`worker_count=5`，`retry_count=0`，`attempt_count=5`，`elapsed_seconds=5.617`
+  - Step5：`asset_reference_count=6`，`exported_asset_count=6`，`missing_asset_count=0`，`question_crop_count=52`，`answer_crop_count=27`，`elapsed_seconds=0.211`
+- 已确认不存在 `runs/question_bank/shanghai_2009_gaokao_science_paper_answer/errors.json`，即 Step3 无失败题。
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/index.html`
+- 主要证据文件：
+  - `runs/specs/shanghai_2009_gaokao_science_paper_answer.json`
+  - `runs/reports/shanghai_2009_gaokao_science_paper_answer_source_import_summary.json`
+  - `runs/reports/shanghai_2009_gaokao_science_paper_answer_v12_pipeline_evidence.json`
+  - `runs/question_bank/shanghai_2009_gaokao_science_paper_answer/summary.json`
+  - `runs/reviews_step3_5_latex_audit/shanghai_2009_gaokao_science_paper_answer/summary.json`
+  - `runs/step2_exam_blocks/shanghai_2009_gaokao_science_paper_answer_raw_units/step4_question_bank_sync.json`
+  - `runs/rendered_question_bank_mathjax/shanghai_2009_gaokao_science_paper_answer/summary.json`
+
+### 接通 worker 并行、步骤计时和自动重试
+
+修改范围：
+
+- 新增 `exam_import/core/execution.py`
+- 修改 `exam_import/core/__init__.py`
+- 修改 `exam_import/cli/run_pipeline.py`
+- 修改 `exam_import/steps/step3_question_json.py`
+- 修改 `exam_import/steps/step35_normalize.py`
+- 修改 `exam_import/steps/step4_runtime.py`
+- 修改 `doc/zh_CN/step_pipeline_processing_flow.md`
+
+修改原因：
+
+- 用户要求把现有 runtime 改为按 `llm.max_workers` 并行调用，并补上步骤计时与自动重试。
+- 实际代码核对后确认，之前 `llm.max_workers` 只在 spec/schema 中定义，Step3、Step3.5、Step4 的模型调用仍是串行。
+
+影响：
+
+- Step3 改为按 `llm.max_workers` 并行处理单题任务；单题失败自动重试，最终错误仍写入 `question_bank/errors.json`。
+- Step3.5 改为按 `llm.max_workers` 并行处理单题规范化；单题失败自动重试，超过上限后整步失败，不做静默回退。
+- Step4 改为按 `llm.max_workers` 并行处理视觉资产页和答案表页；失败 job 自动重试，超过上限后整步失败。
+- Step2 与 Step5 增加步骤级自动重试。
+- Step3 `summary.json` 与 Step3.5 `summary.json` 新增：
+  - `elapsed_seconds`
+  - `retry_count`
+  - `attempt_count`
+  - `worker_count`
+- Pipeline evidence 中 Step2-Step5 的 metrics 统一增加上述计时与重试统计；`run_pipeline()` 顶层返回新增总 `elapsed_seconds`。
+- 自动重试默认 3 次尝试、线性退避；默认不重试 `FileNotFoundError`，避免对缺失输入做无意义重复调用。
+
+验证：
+
+- 已运行 `python.exe -m py_compile`，覆盖：
+  - `exam_import/core/execution.py`
+  - `exam_import/cli/run_pipeline.py`
+  - `exam_import/steps/step3_question_json.py`
+  - `exam_import/steps/step35_normalize.py`
+  - `exam_import/steps/step4_runtime.py`
+- 已运行 `python.exe -u code/sources/exam_import/cli/check_contracts.py`，结果通过。
+- 已做 `call_with_retries()` 本地烟测：前两次抛 `RuntimeError('transient')`、第三次成功，结果为 `success=True`、`attempts=3`。
+- 已做 `_run_step3()` 本地烟测，不调用外部 API：
+  - 2 道题，`max_workers=2`
+  - 每题首次失败、第二次成功
+  - 结果：`record_count=2`、`retry_count=2`、`attempt_count=4`、`worker_count=2`、`error_count=0`
+- 已做 `_run_step35()` 本地烟测，不调用外部 API：
+  - 2 道题，`max_workers=2`
+  - 每题首次失败、第二次成功
+  - 结果：`record_count=2`、`retry_count=2`、`attempt_count=4`、`worker_count=2`
+  - `before_finding_count=2`、`after_finding_count=0`
+- 已做 `run_step4()` 本地烟测，不调用外部 API：
+  - 2 个 visual jobs + 1 个 answer-table job，`max_workers=2`
+  - 每个 job 首次失败、第二次成功
+  - 结果：`retry_count=3`、`attempt_count=6`、`worker_count=2`
+  - `visual_job_count=2`、`answer_table_job_count=1`
+- 已用现成 retry SPEC 做真实 API 复跑：
+  - SPEC：`runs/specs/shanghai_2023_spring_hi_quality_mixed_step4_retry.json`
+  - 注入本地 `api_key/.dashscope_api_key` 后运行 `run_pipeline.py`
+  - pipeline 总耗时：`elapsed_seconds=2.741`
+  - Step4 evidence：`worker_count=4`、`retry_count=0`、`attempt_count=4`、`visual_job_count=4`、`elapsed_seconds=2.651`
+  - Step5 evidence：`worker_count=1`、`retry_count=0`、`attempt_count=1`、`elapsed_seconds=0.067`
+  - evidence 文件：`runs/reports/shanghai_2023_spring_hi_quality_mixed_v12_pipeline_evidence.json`
+
+### 补充 Step3.5 本地 audit_findings
+
+修改范围：
+
+- 修改 `exam_import/steps/step35_normalize.py`
+- 修改 `doc/zh_CN/step35_latex_audit.md`
+
+修改原因：
+
+- 用户要求在本地 Step3.5 中补充 LaTeX、`<blank>`、`<choice_blank>` 和字段格式相关的 `audit_findings`，但不改变当前“每道题都送入 Step3.5 模型”的调度方式。
+- 当前 Step3.5 prompt 已经要求全量审计，但本地 `audit_record()` 只提示 HTML 实体、换行、数学连接词拆分和选项组引用一致性，finding 覆盖不足。
+
+影响：
+
+- Step3.5 新增逐段文本审计：
+  - `latex_command_outside_math`
+  - `math_relation_outside_math`
+  - `subsup_outside_math`
+  - `left_right_count_mismatch`
+  - `blank_inside_math`
+  - `choice_blank_inside_math`
+  - `asset_placeholder_inside_math`
+  - `unknown_placeholder_tag`
+- Step3.5 新增整题级选项占位审计：
+  - `missing_choice_blank`
+  - `duplicate_choice_blank`
+  - `raw_choice_blank_not_normalized`
+  - `choice_blank_in_options`
+- 未修改 Step3.5 prompt、模型调用、写回逻辑和 Step3 / Step4 / Step5 流程。
+
+验证：
+
+- 已运行 `python.exe -m py_compile code/sources/exam_import/steps/step35_normalize.py`，结果通过。
+- 已运行合成样例审计烟测，覆盖新增 reason：`latex_command_outside_math`、`math_relation_outside_math`、`subsup_outside_math`、`left_right_count_mismatch`、`blank_inside_math`、`choice_blank_inside_math`、`asset_placeholder_inside_math`、`unknown_placeholder_tag`、`missing_choice_blank`、`raw_choice_blank_not_normalized`、`choice_blank_in_options`。
+- 已对 `shanghai_2018_autumn_paper_answer` 当前最终题库做本地审计复核，不调用模型：
+  - `question_count=21`
+  - `finding_count=33`
+  - reason 分布：`latex_command_outside_math=7`、`math_condition_split_across_text_connector=22`、`missing_choice_blank=3`、`raw_choice_blank_not_normalized=1`
+  - 有 finding 的题号：12、13、14、15、16、17、18、19、20、21
+- 已运行 `python.exe -u code/sources/exam_import/cli/check_contracts.py`，结果通过。
+
+### 通过 skill 流程导入 hi_quality 2018 秋考
+
+修改范围：
+
+- 新增 `runs/specs/shanghai_2018_autumn_paper_answer.json`
+
+修改原因：
+
+- 用户要求按 `exam-import` skill 的标准流程导入 `hi_quality 2018 秋考`，不能跳过 SPEC、验证和真实运行证据。
+
+影响：
+
+- 新 spec 使用 `paper_plus_answer`：
+  - `paper_pdf = hi_quality/2018/2018上海.pdf`
+  - `answer_pdf = hi_quality/2018/2018上海 解析.pdf`
+- `run_id` 按 `gaokaomath_shanghai/hi_quality/导入配置参数.md` 中既有命名约定固定为 `shanghai_2018_autumn_paper_answer`。
+- 本次未改运行时代码；仅新增 spec，并按现有 v12 runtime 执行导入。
+
+验证：
+
+- 已先读取 `skills/exam-import/SKILL.md`、`references/import-spec.md`、`references/v12-runtime.md`，再读取本地 `import_spec.py`、`source_import.py`、`run_pipeline.py` 确认当前实际入口和参数要求。
+- 已运行 `validate_spec.py`，spec 通过。
+- 已运行 `source_import.py`：
+  - `paper`：`status=extracted`，`page_count=2`
+  - `answer`：`status=extracted`，`page_count=16`
+- 首次运行 `run_pipeline.py` 时，Step2 前即失败，原因是当前环境缺少 `DASHSCOPE_API_KEY`；运行时代码不会自动从 `mineru.token_file` 或其他 spec 字段注入 DashScope key。
+- 随后用本地 `api_key/.dashscope_api_key` 临时注入 `DASHSCOPE_API_KEY` 后重跑，pipeline 成功完成。
+- 真实运行结果：
+  - Step2：`question_count=21`，`answered_question_count=21`，`missing_answer_numbers=[]`
+  - Step3：`question_count=21`，`success_count=21`，`error_count=0`
+  - Step3.5：`question_count=21`，`normalized_count=21`，`before_finding_count=20`，`after_finding_count=22`，`error_count=0`
+  - Step4 同步：`changed_question_count=3`，`added_placeholder_count=3`，`moved_placeholder_count=0`，`removed_placeholder_count=0`，`merged_answer_entry_count=0`
+  - Step5：`asset_reference_count=7`，`exported_asset_count=7`，`missing_asset_count=0`
+  - Step5 Step2-crop 审阅资源：`question_crop_count=25`，`answer_crop_count=40`，`copied_question_crop_count=25`，`copied_answer_crop_count=40`，`missing_crop_count=0`
+- 已确认无 `question_bank/errors.json`，即 Step3 无失败题。
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2018_autumn_paper_answer/index.html`
+- 主要证据文件：
+  - `runs/specs/shanghai_2018_autumn_paper_answer.json`
+  - `runs/reports/shanghai_2018_autumn_paper_answer_source_import_summary.json`
+  - `runs/reports/shanghai_2018_autumn_paper_answer_v12_pipeline_evidence.json`
+  - `runs/question_bank/shanghai_2018_autumn_paper_answer/summary.json`
+  - `runs/reviews_step3_5_latex_audit/shanghai_2018_autumn_paper_answer/summary.json`
+  - `runs/step2_exam_blocks/shanghai_2018_autumn_paper_answer_raw_units/step4_question_bank_sync.json`
+  - `runs/rendered_question_bank_mathjax/shanghai_2018_autumn_paper_answer/summary.json`
+
+### 强制显式 `<options>` 占位并取消 Step5 选项兜底渲染
+
+修改范围：
+
+- 修改 `exam_import/schemas/question_record.py`
+- 修改 `exam_import/steps/step3_question_json.py`
+- 修改 `exam_import/steps/step35_normalize.py`
+- 修改 `exam_import/render/latex_renderer.py`
+- 修改 `prompts/zh_CN/step3_question_json.prompt.md`
+- 修改 `prompts/zh_CN/step35_latex_audit.prompt.md`
+- 修改 `doc/zh_CN/step3_question_json.md`
+- 修改 `doc/zh_CN/step35_latex_audit.md`
+- 修改 `doc/zh_CN/step5_render.md`
+
+修改原因：
+
+- 用户要求收紧规则：无 `<options>` 就不渲染选项，且 Step3 / Step3.5 必须强制给所有带 `options_latex` 的选择题题干补 `<options no="...">`。
+- 上一版旧 Step5 回归仍保留了“题干未写 `<options>` 时，把 `options_latex` 作为题干后独立选项区兜底渲染”的语义，这会掩盖 Step3 / Step3.5 漏放占位的问题。
+
+影响：
+
+- `ensure_options_placeholders_in_payload()` 会在 Step3 和 Step3.5 解析模型输出后统一检查：只要 `options_latex` 非空，就保证 `stem_latex` 中显式存在并按组选项顺序写入 `<options no="...">`；若缺失或错乱，会清理旧 tag 并重建显式占位。
+- Step3.5 的 `options_group_reference_mismatch` 审计恢复为严格模式：`options_latex` 非空时，题干必须显式引用全部选项组；不再允许“无 `<options>` 但依赖渲染层显示选项”的记录通过。
+- Step5 渲染器删除 `trailing_options_html` 兜底分支；现在只有 `stem_latex` 中显式出现 `<options no="...">` 时，对应选项组才会显示。
+- prompt 和文档同步改为强约束，不再描述“stem_latex 未写 `<options>` 也可保留独立选项区”的旧语义。
+
+验证：
+
+- 已运行源码级编译检查，结果通过：`question_record.py`、`step3_question_json.py`、`step35_normalize.py`、`latex_renderer.py`。
+- 已运行 `python.exe -u code/sources/exam_import/cli/check_contracts.py`，结果通过。
+- 已复用既有 source run 与 Step2 产物，重跑 `shanghai_2023_spring_hi_quality_mixed` 的 Step3、Step3.5、Step4、Step5：
+  - Step3：`question_count=21`、`success_count=21`、`error_count=0`。
+  - Step3.5：`question_count=21`、`normalized_count=21`、`before_finding_count=9`、`after_finding_count=10`、`error_count=0`。
+  - Step3.5 本地复审：最终 finding 共 10 条，全部为 `math_condition_split_across_text_connector`，已无 `options_group_reference_mismatch`。
+  - Step4：`changed_question_count=2`、`added_placeholder_count=2`、`moved_placeholder_count=0`、`removed_placeholder_count=0`、`merged_answer_entry_count=0`。
+  - Step5：`question_count=21`、`asset_reference_count=4`、`exported_asset_count=4`、`missing_asset_count=0`。
+- 已本地核对 `runs/question_bank/shanghai_2023_spring_hi_quality_mixed/question_bank.json`：所有 `options_latex` 非空记录都已显式带 `<options no="...">`，`missing_count=0`。
+- 已核对渲染产物 [index.html](D:/Courses/Research/MathExam2QuestionBank/code/sources/runs/rendered_question_bank_mathjax/shanghai_2023_spring_hi_quality_mixed/index.html)：`q013`、`q014`、`q015` 的选项都来自题干中的显式 `<options>` 占位，不再依赖题干后兜底渲染。
+
+### Step5 恢复 Step2 裁剪栏目并按原始 IMG-SRC 导图
+
+修改范围：
+
+- 新增 `exam_import/render/step2_crop_review.py`
+- 修改 `exam_import/render/latex_renderer.py`
+- 修改 `exam_import/render/mathjax_page.py`
+- 修改 `exam_import/render/asset_export.py`
+- 修改 `exam_import/steps/step5_render.py`
+- 修改 `doc/zh_CN/step5_render.md`
+
+修改原因：
+
+- 用户指出当前 MathJax 审阅页缺少旧版 `Step2 裁剪` 栏目，而且图片导出不应只依赖 `path` / `img_path`，应优先沿用原始 `IMG-SRC` 线索。
+- 这两个问题都属于 Step5 审阅层，应在渲染和资产导出链路修正，不能通过手改最终题库 JSON 掩盖。
+
+影响：
+
+- Step5 现在会读取 `<step2_run_dir>/crops_manifest.json`，把 Step2 已生成的 question / answer crops 复制到 `rendered_question_bank_mathjax/<run_id>/step2_crops/`，并在每题顶部恢复 `Step2 裁剪` 折叠栏目。
+- Step5 summary 新增 `step2_crop_review` 统计，记录 manifest 计数、实际复制数量和缺失 crop 数量。
+- 图片导出顺序改为：
+  1. 先从 Step2 packet 文本、source block 文本、`mineru_item.content` 中解析原始 `<img src="...">`
+  2. 再回退到 packet `path`
+  3. 最后回退到 source block `path` 和 `mineru_item.img_path`
+- 这样 Step5 最终仍然只复制 source run 中已有的真实源图，但路径优先遵循原始 `IMG-SRC`，避免错误命中后处理字段。
+
+验证：
+
+- 已运行源码级编译检查，结果通过：`step2_crop_review.py`、`latex_renderer.py`、`mathjax_page.py`、`asset_export.py`、`step5_render.py`。
+- 已运行 `python.exe -u` 内联脚本，对 `shanghai_2023_spring_hi_quality_mixed` 重跑 Step5：
+  - Step5：`question_count=21`
+  - 资产导出：`asset_reference_count=4`、`exported_asset_count=4`、`missing_asset_count=0`、`raster_copy_count=4`
+  - Step2 crop 审阅资源：`question_crop_count=34`、`answer_crop_count=0`、`copied_question_crop_count=34`、`copied_answer_crop_count=0`、`missing_crop_count=0`
+- 已核对渲染产物 [index.html](D:/Courses/Research/MathExam2QuestionBank/code/sources/runs/rendered_question_bank_mathjax/shanghai_2023_spring_hi_quality_mixed/index.html)：
+  - 每题顶部已恢复 `Step2 裁剪` 折叠栏目
+  - 题面 crop 资源来自 `step2_crops/*.png`
+  - 正文图片仍只在 `<img src="...">` / `<chart src="...">` 占位位置渲染为 `assets/*.jpg`
+
+### 回退题库字段到 LaTeX 并移除 Markdown 兼容层
+
+修改范围：
+
+- 修改 `exam_import/schemas/question_record.py`
+- 修改 `exam_import/schemas/answer_table.py`
+- 修改 `exam_import/schemas/visual_asset.py`
+- 修改 `exam_import/steps/step3_question_json.py`
+- 修改 `exam_import/steps/step35_normalize.py`
+- 修改 `exam_import/steps/step4_assets.py`
+- 修改 `exam_import/steps/step4_runtime.py`
+- 修改 `exam_import/render/asset_export.py`
+- 重命名 `exam_import/render/markdown_renderer.py` 为 `exam_import/render/latex_renderer.py`
+- 修改 `exam_import/render/mathjax_page.py`
+- 修改 `exam_import/render/__init__.py`
+- 修改 `exam_import/steps/step5_render.py`
+- 修改 `exam_import/cli/check_contracts.py`
+- 修改 `tool_schemas/question_record.schema.json`
+- 修改 `tool_schemas/answer_table_review.schema.json`
+- 修改 `tool_schemas/visual_asset_review.schema.json`
+- 修改 `prompts/zh_CN/step3_question_json.prompt.md`
+- 修改 `prompts/zh_CN/step35_latex_audit.prompt.md`
+- 修改 `prompts/zh_CN/step4_visual_assets.prompt.md`
+- 修改 `prompts/zh_CN/step4_answer_tables.prompt.md`
+- 修改 `doc/zh_CN/step3_question_json.md`
+- 修改 `doc/zh_CN/step35_latex_audit.md`
+- 修改 `doc/zh_CN/step4_assets.md`
+- 修改 `doc/zh_CN/step5_render.md`
+- 修改 `doc/zh_CN/step_pipeline_processing_flow.md`
+- 修改 `doc/zh_CN/step4_asset_placeholder_algorithm.md`
+
+修改原因：
+
+- 当前主链路已把题库字段切到 `stem_markdown`、`options_markdown`、`answer_markdown`、`analysis_markdown`，且 Step5 改为 Markdown parser 渲染；本次要求是回到旧版 `*_latex` 字段和旧 Step5 MathJax 审阅渲染。
+- 运行时仍残留 Markdown 兼容层：`from_dict()` 双读 `*_latex` / `*_markdown`、别名属性 `stem_markdown -> stem_latex`、Step3 空白段清理兼容旧字段名、Step4/渲染/导出层接受旧 target/source field。
+- 回退后首次实跑发现 Step5 在处理 `<blank>` 对应的 LaTeX 下划线时，`re.sub()` 把 `\underline` 误当成替换模板转义，导致渲染阶段抛出 `bad escape \u`；同时旧 Step5 语义下，`<options no="..."/>` 自闭合占位需要原位展开，且无 `<options>` 占位的 `options_latex` 允许作为题干后独立选项区渲染。
+
+影响：
+
+- Step3 / Step3.5 / Step4 / Step5 / tool schema / prompt / 当前流程文档统一恢复为 `stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`，选项内容字段统一为 `content_latex`。
+- `QuestionRecord`、`AnswerTableReview`、`VisualAssetReview` 运行时不再兼容旧 `*_markdown` 输入；旧字段若继续进入流程，会在 schema 校验处直接失败，不再静默映射。
+- Step5 恢复为旧式受控 LaTeX 文本切分和占位替换，不再引入 Markdown parser；渲染模块命名同步改为 `latex_renderer.py`。
+- 选择题/填空位渲染中的连续下划线替换改为 `lambda` 返回 LaTeX 片段，避免 `re.sub()` 把反斜杠当替换模板转义。
+- Step5 现在支持 `<options no="...">` 与 `<options no="..."/>` 两种选项占位；若题干中已内联引用选项组，则不再在题干后重复渲染；若题干未写 `<options>` 占位，则 `options_latex` 继续按旧 Step5 作为题干后的独立选项区输出。
+- Step3.5 的 `options_group_reference_mismatch` 审计改为只在题干显式出现 `<options>` 占位时检查引用一致性；无占位的 `options_latex` 不再误报 mismatch。
+
+验证：
+
+- 已运行源码级编译检查，结果通过：本次修改涉及的 schema、step、render、CLI Python 文件均可编译。
+- 已运行 `python.exe -u code/sources/exam_import/cli/check_contracts.py`，结果通过。
+- 已复用既有 source run 与 Step2 产物，重跑 `shanghai_2023_spring_hi_quality_mixed` 的 Step3、Step3.5、Step4、Step5：
+  - Step3：`question_count=21`、`success_count=21`、`error_count=0`。
+  - Step3.5：`question_count=21`、`normalized_count=21`、`before_finding_count=11`、`after_finding_count=12`、`error_count=0`。
+  - Step3.5 本地复审：最终 finding 共 12 条，全部为 `math_condition_split_across_text_connector`。
+  - Step4：`changed_question_count=1`、`added_placeholder_count=1`、`moved_placeholder_count=0`、`removed_placeholder_count=0`、`merged_answer_entry_count=0`。
+  - Step5：`question_count=21`、`asset_reference_count=4`、`exported_asset_count=4`、`missing_asset_count=0`。
+- 已本地确认 `runs/question_bank/shanghai_2023_spring_hi_quality_mixed/question_bank.json` 首题键集合只含 `schema_version`、`question_no`、`stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`、`issues`，不再含任何 `*_markdown` 字段。
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2023_spring_hi_quality_mixed/index.html`。
+
+### 导入 2023 上海春考解析卷并修复运行契约缺口
+
+修改范围：
+
+- 新增 `runs/specs/shanghai_2023_spring_hi_quality_mixed.json`
+- 新增 `runs/specs/shanghai_2023_spring_hi_quality_mixed_step4_retry.json`
+- 修改 `tool_schemas/visual_asset_review.schema.json`
+- 修改 `exam_import/steps/step3_question_json.py`
+
+修改原因：
+
+- 本次导入目标为 `gaokaomath_shanghai/hi_quality/2023/2023年春考 解析卷.pdf`，PDF 共 14 页，题目与答案解析逐题交织，因此 SPEC 使用 `input_mode=mixed`，不混入同目录秋考题卷或高考答案 PDF。
+- Step4 首次运行失败，原因是视觉资产 risk 的工具 schema 使用 `type/message`，而运行时 dataclass、prompt 文档和同步逻辑使用 `label/reason`。
+- q13 Step3 多次返回纯空白 `analysis_markdown` 数组项；空项不携带信息，且 prompt 与 schema 均要求数组项非空，因此在 Step3 解析前删除纯空白 markdown 段落，再进入 `QuestionRecord` 校验。
+
+影响：
+
+- 视觉资产工具 schema 的 `risks[]` 与运行时统一为 `label/severity/reason`。
+- Step3 只删除 `stem_markdown`、`answer_markdown`、`analysis_markdown` 和选项 `content_markdown` 中的纯空白字符串项，不改非空题文、答案、解析、LaTeX、题号或选项；清理后若仍不满足 schema 仍会失败。
+- 本次 retry SPEC 只用于复用已成功的 Step2-Step3.5 产物并重跑 Step4/render，不改变主导入 SPEC。
+
+验证：
+
+- SPEC 审核通过：schema_version、mixed 模式、PDF 路径、14 页页数、MinerU token、5 个 call spec、DashScope `qwen3.5-flash`、`max_workers=8`、`enable_thinking=false` 均通过。
+- Source import 成功：mixed part 抽取 14 页，状态 `extracted`。
+- Step2 成功：`qa_alignment_count=21`，题号为 1-21。
+- Step3 首次成功 20/21，q13 因空白 `analysis_markdown` 项失败；修复后 q13 retry 成功，最终 `question_count=21`、`success_count=21`、`error_count=0`。
+- Step3.5 成功：`question_count=21`、`normalized_count=21`、`error_count=0`。
+- Step4 成功：`changed_question_count=0`、`added_placeholder_count=0`、`moved_placeholder_count=0`、`removed_placeholder_count=0`、`merged_answer_entry_count=0`。
+- 资产同步成功：视觉资产 4 个、风险 0；渲染导出资产 `asset_reference_count=4`、`exported_asset_count=4`、`missing_asset_count=0`。
+- 最终题库审计通过：21 条记录，题号 1-21，无空白 markdown 段落。
+- 渲染入口：`runs/rendered_question_bank_mathjax/shanghai_2023_spring_hi_quality_mixed/index.html`。
+
 ### Step3 裁剪图只标注资产框
 
 修改范围：

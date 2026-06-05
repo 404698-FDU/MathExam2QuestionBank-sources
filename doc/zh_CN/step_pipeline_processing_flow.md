@@ -17,7 +17,7 @@ flowchart TD
   G --> H["Step4: 视觉资产占位对账与答案表抽取"]
   C --> H
   H --> I["Step4.5: 同步占位和资产元数据到 question_bank"]
-  I --> J["Step5: HTML/MathJax 或 Markdown 渲染"]
+  I --> J["Step5: HTML/MathJax 渲染"]
   J --> K["rendered_question_bank_mathjax/<run_id>/index.html"]
 ```
 
@@ -34,6 +34,9 @@ Step2 -> Step3 -> Step3.5 -> Step4 -> Step4.5 sync -> Step5
 - Step3.5 只做全量格式规范化，不补内容、不解题、不重新归类。
 - Step4 不重写正文，只做 Step3 资产占位对账和答案表格抽取。
 - Step5 不调用大模型，只读取最终题库和资产生成审阅页面。
+- Step3、Step3.5、Step4 的模型调用按 `llm.max_workers` 并行执行。
+- Step2-Step5 都记录运行计时；有重试的步骤同时记录 `retry_count`、`attempt_count`、`worker_count`。
+- 自动重试只重试失败调用本身，不做静默降级；达到上限后仍按失败处理。
 
 ## Step2：顶层题号范围检测
 
@@ -148,10 +151,10 @@ Step2 question range labels
 
 Step3 调用 VLM 做单题整理：
 
-- 从题面图整理 `stem_markdown`。
-- 从题面图整理 `options_markdown`。
-- 从答案/解析图整理 `answer_markdown`。
-- 从答案/解析图整理 `analysis_markdown`。
+- 从题面图整理 `stem_latex`。
+- 从题面图整理 `options_latex`。
+- 从答案/解析图整理 `answer_latex`。
+- 从答案/解析图整理 `analysis_latex`。
 - 记录 `issues`。
 - 在对应字段中放置资产占位：`<img src="...">`、`<table src="...">`、`<chart src="...">`。
 
@@ -160,7 +163,7 @@ Step3 不应做：
 - 不解题。
 - 不根据解析反推答案。
 - 不补图片中没有出现的内容。
-- 不把题号写入 `stem_markdown`。
+- 不把题号写入 `stem_latex`。
 - 不保留旧 `question_type` 作为必要字段。
 
 ### 输出
@@ -171,10 +174,10 @@ Step3 不应做：
 {
   "schema_version": "image_only_question_standardization_v1",
   "question_no": 1,
-  "stem_markdown": [],
-  "options_markdown": [],
-  "answer_markdown": [],
-  "analysis_markdown": [],
+  "stem_latex": [],
+  "options_latex": [],
+  "answer_latex": [],
+  "analysis_latex": [],
   "issues": []
 }
 ```
@@ -187,6 +190,13 @@ runs_question_bank/<run_id>/question_bank.json
 runs_question_bank/<run_id>/question_bank.jsonl
 runs_question_bank/<run_id>/summary.json
 ```
+
+`summary.json` 额外记录：
+
+- `elapsed_seconds`
+- `retry_count`
+- `attempt_count`
+- `worker_count`
 
 ### 流向 Step3.5
 
@@ -228,10 +238,10 @@ Step3.5 对每道题做 full normalize：
 处理对象：
 
 ```text
-stem_markdown
-options_markdown[].options[].content_markdown
-answer_markdown
-analysis_markdown
+stem_latex
+options_latex[].options[].content_latex
+answer_latex
+analysis_latex
 issues
 ```
 
@@ -242,6 +252,13 @@ reviews_step3_5_latex_audit/<run_id>/normalized_question_bank.json
 reviews_step3_5_latex_audit/<run_id>/merged_question_bank.json
 reviews_step3_5_latex_audit/<run_id>/summary.json
 ```
+
+`summary.json` 额外记录：
+
+- `elapsed_seconds`
+- `retry_count`
+- `attempt_count`
+- `worker_count`
 
 如果启用 write-back：
 
@@ -302,7 +319,7 @@ Step4 只允许从 `qa_alignment.json` 读取资产候选题号、题面范围�
 答案表格部分：
 
 - 只识别答案速查表。
-- 只有最终答案表可生成 `answer_markdown` 条目。
+- 只有最终答案表可生成 `answer_latex` 条目。
 - 解析表、评分表、过程表不得抽取最终答案。
 
 ### 输出
@@ -352,10 +369,10 @@ rendered_question_bank_mathjax/<run_id>/assets
 
 ### 重构方向
 
-前序步骤已改为 Markdown 字段后，Step5 应改为：
+当前 Step5 保持旧版 LaTeX 审阅渲染方式：
 
-- 读取 `stem_markdown`、`options_markdown`、`answer_markdown`、`analysis_markdown`。
-- 使用开源 Markdown parser 解析 Markdown。
+- 读取 `stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`。
+- 使用本地受控文本切分与占位替换，不引入 Markdown parser。
 - 用受控 adapter 渲染 `<blank>`、`<choice_blank>`、`<img src>`、`<table src>`、`<chart src>`。
 - 继续用 MathJax 渲染数学。
 - 不修复 LaTeX，不移动资产，不修改 question bank。
@@ -372,7 +389,7 @@ rendered_question_bank_mathjax/<run_id>/assets/...
 
 - 缺少 `question_bank.json` 时失败。
 - 资产文件缺失时显示 missing asset，但不修改题库。
-- Markdown/HTML 渲染层不得吞掉非法占位；非法占位应在审阅页暴露。
+- 渲染层不得吞掉非法占位；非法占位应在审阅页暴露。
 
 ## 端到端证据
 
@@ -384,6 +401,12 @@ Step3 success_count / error_count / issue_counts
 Step3.5 question_count / normalized_count / error_count / before_finding_count
 Step4 asset_count / assigned_or_checked_count / risk_count / sync_changed_question_count
 Step5 render entry path
+```
+
+当前 evidence 还应包含：
+
+```text
+每步 elapsed_seconds / retry_count / attempt_count / worker_count
 ```
 
 失败不应通过手工修改最终 JSON 掩盖。应修脚本顺序、prompt、schema 或输入结构后重跑。

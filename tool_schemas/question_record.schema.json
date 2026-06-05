@@ -4,10 +4,10 @@
   "required": [
     "schema_version",
     "question_no",
-    "stem_markdown",
-    "options_markdown",
-    "answer_markdown",
-    "analysis_markdown",
+    "stem_latex",
+    "options_latex",
+    "answer_latex",
+    "analysis_latex",
     "issues"
   ],
   "properties": {
@@ -21,14 +21,14 @@
       "type": "integer",
       "minimum": 1
     },
-    "stem_markdown": {
+    "stem_latex": {
       "type": "array",
       "items": {
         "type": "string",
         "minLength": 1
       }
     },
-    "options_markdown": {
+    "options_latex": {
       "type": "array",
       "items": {
         "type": "object",
@@ -50,14 +50,14 @@
               "additionalProperties": false,
               "required": [
                 "label",
-                "content_markdown"
+                "content_latex"
               ],
               "properties": {
                 "label": {
                   "type": "string",
                   "minLength": 1
                 },
-                "content_markdown": {
+                "content_latex": {
                   "type": "array",
                   "items": {
                     "type": "string",
@@ -70,14 +70,14 @@
         }
       }
     },
-    "answer_markdown": {
+    "answer_latex": {
       "type": "array",
       "items": {
         "type": "string",
         "minLength": 1
       }
     },
-    "analysis_markdown": {
+    "analysis_latex": {
       "type": "array",
       "items": {
         "type": "string",

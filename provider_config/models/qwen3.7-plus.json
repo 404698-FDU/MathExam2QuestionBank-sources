@@ -5,9 +5,10 @@
   ],
   "context_window": 1000000,
   "supports_vision": false,
-  "supports_tool_calling": false,
+  "supports_tool_calling": true,
   "supported_response_modes": [
-    "none"
+    "none",
+    "tool_calling"
   ],
   "token_estimator": "char_div_4",
   "recommended_tpm": 20000,

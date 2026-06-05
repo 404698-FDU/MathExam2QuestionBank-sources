@@ -29,13 +29,13 @@ source_doc: ../../doc/zh_CN/step4_assets.md
 规则：
 - 每个输入 tables[] 项必须输出一次。
 - 不得解题，不得推断表格中没有直接给出的答案。
-- 如果表格把题号映射到选择字母、填空结果或最终答案，role 使用 answer_key_table，target_field 使用 answer_markdown。
+- 如果表格把题号映射到选择字母、填空结果或最终答案，role 使用 answer_key_table，target_field 使用 answer_latex。
 - answer_key_table 的 entries 可以非空；其他 role 的 entries 必须为空数组。
-- 如果表格是解答过程、证明过程、评分说明或点评表，role 使用 analysis_table，target_field 使用 analysis_markdown，但 entries 必须为空数组。
+- 如果表格是解答过程、证明过程、评分说明或点评表，role 使用 analysis_table，target_field 使用 analysis_latex，但 entries 必须为空数组。
 - 如果表格是页眉页脚、装饰、二维码、水印、广告或无关内容，role 使用 noise，target_field 使用 none。
 - 如果无法安全判断，role 使用 uncertain，target_field 使用 none，并在 risks 中记录。
 - entries[].question_no 必须来自表格可见题号，通常应位于 candidate_qnos 中。
-- entries[].answer_markdown 是可直接合并到 Step3 answer_markdown 的 JSON 字符串数组。
+- entries[].answer_latex 是可直接合并到 Step3 answer_latex 的 JSON 字符串数组。
 - 选择题字母答案必须写成 LaTeX 行内格式，例如 $A$。
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 不得把解析表、评分表或过程表中的中间结果抽成最终答案。
@@ -47,3 +47,4 @@ source_doc: ../../doc/zh_CN/step4_assets.md
 
 {final_rule}
 ```
+

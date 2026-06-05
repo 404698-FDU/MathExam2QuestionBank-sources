@@ -20,3 +20,4 @@
 - `call_specs/*.json` 只引用这里已经定义过的 `provider` 和 `model` 名称。
 - `check_contracts.py` 会校验本目录存在且可被运行时代码解析。
 - 对百炼/DashScope，若使用 `tool_choice={"type":"function",...}` 强制指定某个工具，必须同时关闭 thinking；对应约束已落在 provider config 中。
+- `qwen3.7-plus` 已通过 Step3.5 `tool_calling` 实测，当前按可用于文本规范化工具调用配置；视觉输入仍不启用。

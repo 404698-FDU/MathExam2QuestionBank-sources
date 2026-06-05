@@ -36,8 +36,8 @@
           "target_field": {
             "type": "string",
             "enum": [
-              "answer_markdown",
-              "analysis_markdown",
+              "answer_latex",
+              "analysis_latex",
               "none"
             ]
           },
@@ -48,7 +48,7 @@
               "additionalProperties": false,
               "required": [
                 "question_no",
-                "answer_markdown",
+                "answer_latex",
                 "confidence",
                 "reason"
               ],
@@ -57,7 +57,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "answer_markdown": {
+                "answer_latex": {
                   "type": "array",
                   "items": {
                     "type": "string",

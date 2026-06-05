@@ -28,11 +28,11 @@
 
 ## 当前示例
 
-当前提供的是 DashScope 兼容模式示例，默认每一步使用 `qwen3.5-flash`：
+当前提供的是 DashScope 兼容模式示例。默认导入中，Step2、Step3、Step4 使用 `qwen3.5-flash`，Step3.5 LaTeX 全量规范化使用 `qwen3.7-plus`：
 
 - `step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json`
 - `step3_question_json.dashscope.qwen3.5-flash.tool_calling.json`
-- `step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json`
+- `step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json`
 - `step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json`
 - `step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json`
 
@@ -64,7 +64,7 @@
     "call_specs": {
       "step2_question_ranges": "call_specs/step2_question_ranges.dashscope.qwen3.5-flash.tool_calling.json",
       "step3_question_json": "call_specs/step3_question_json.dashscope.qwen3.5-flash.tool_calling.json",
-      "step35_latex_audit": "call_specs/step35_latex_audit.dashscope.qwen3.5-flash.tool_calling.json",
+      "step35_latex_audit": "call_specs/step35_latex_audit.dashscope.qwen3.7-plus.tool_calling.json",
       "step4_visual_assets": "call_specs/step4_visual_assets.dashscope.qwen3.5-flash.tool_calling.json",
       "step4_answer_tables": "call_specs/step4_answer_tables.dashscope.qwen3.5-flash.tool_calling.json"
     }

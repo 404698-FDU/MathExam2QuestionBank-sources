@@ -16,6 +16,14 @@ from .common import (
     read_json_file,
 )
 
+FIELD_NAME_ENUM = {
+    "stem_latex",
+    "options_latex",
+    "answer_latex",
+    "analysis_latex",
+    "none",
+}
+
 
 @dataclass(frozen=True)
 class VisualAssetAssignment:
@@ -43,6 +51,8 @@ class VisualAssetAssignment:
         question_no = payload.get("question_no")
         if question_no is not None and not isinstance(question_no, int):
             raise ValidationError("question_no must be an integer or null-equivalent")
+        source_field = _expect_field_name(payload, "source_field")
+        target_field = _expect_field_name(payload, "target_field")
         return cls(
             label=expect_string(payload, "label"),
             question_no=question_no if isinstance(question_no, int) else 0,
@@ -64,16 +74,8 @@ class VisualAssetAssignment:
                 "action",
                 {"keep_existing", "add_placeholder", "remove_placeholder", "move_placeholder", "ignore_asset", "review_required"},
             ),
-            source_field=expect_enum(
-                payload,
-                "source_field",
-                {"stem_markdown", "options_markdown", "answer_markdown", "analysis_markdown", "none"},
-            ),
-            target_field=expect_enum(
-                payload,
-                "target_field",
-                {"stem_markdown", "options_markdown", "answer_markdown", "analysis_markdown", "none"},
-            ),
+            source_field=source_field,
+            target_field=target_field,
             insert_position=expect_enum(
                 payload,
                 "insert_position",
@@ -138,3 +140,11 @@ class VisualAssetReview:
 def load_visual_asset_review(path: Path) -> VisualAssetReview:
     payload = expect_mapping(read_json_file(path), str(path))
     return VisualAssetReview.from_dict(payload)
+
+
+def _expect_field_name(payload: Mapping[str, Any], field_name: str) -> str:
+    value = expect_string(payload, field_name)
+    if value not in FIELD_NAME_ENUM:
+        known = ", ".join(sorted(FIELD_NAME_ENUM))
+        raise ValidationError(f"{field_name} must be one of: {known}")
+    return value

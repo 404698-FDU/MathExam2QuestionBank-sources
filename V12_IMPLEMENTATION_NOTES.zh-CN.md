@@ -222,7 +222,7 @@ Step5 当前使用已安装的开源 `markdown` Python 库，而不是手写 Mar
 - `check_contracts.py` 当前只做“结构引用存在且关键字段未漂移”的机器校验，不负责运行真实模型调用，也不覆盖 dataclass 与 JSON Schema 的完全双向等价性。
 - `provider_config/models/*.json` 现在把模型和 provider 的关系做成“一个模型可声明多个 provider”，例如 `qwen-vl-max`、`qwen3.5-flash` 同时允许 `dashscope` 和 `bailian`；`call_spec_loader.py` 只校验 provider 是否在该模型允许列表中，不再强绑成单 provider。
 - `qwen3.6-plus` 已按百炼当前模型矩阵加入 model 配置，视为支持视觉输入、Function Calling 和结构化输出。
-- `qwen3.7-plus` 已加入 model 配置，但当前百炼公开总能力矩阵没有明确列出它的 Function Calling/结构化输出能力；因此当前实现先将其按“可用模型 ID、普通文本对话”做保守配置，不直接放开到 Step2-Step4 的 tool-calling 流程。
+- `qwen3.7-plus` 已加入 model 配置，并已通过 Step3.5 文本规范化 `tool_calling` 实测；当前正式默认只将其用于 Step3.5，不用于 Step2/Step3/Step4 的视觉或范围识别调用。
 - `step2_runtime.py` 使用 prompt 文档中的 `system prompt` 与 `user instruction template`，本地只补 `mode_rule`、`output_rule`、`final_rule` 三段变量，不再内嵌整份 Step2 prompt。
 - `step4_runtime.py` 当前按“逐页 prompt、聚合结果”的方式运行；输入 compact JSON 在本地以数组形式落盘，数组元素仍然保持 prompt 约定的单页结构。
 - `step4_assets.py` 现在按 prompt 契约发送多模态消息：
@@ -245,3 +245,10 @@ Step5 当前使用已安装的开源 `markdown` Python 库，而不是手写 Mar
 - `schemas/visual_asset.py` 的 `risks` 已从旧的 `IssueRecord(type/message)` 改为和 Step4 prompt/schema 一致的 `label/severity/reason` 结构。
 - `render/asset_export.py` 当前是 Step5 资产导出层：它不重算归属，不改 question bank，只负责把已在题库中出现的占位标签解析成真实输出资产，并写 `assets_manifest.json` 供审阅和 evidence 使用。
 - 已做一条无外部凭据的主链路 smoke：`raw PDF -> source_import(local_pymupdf) -> Step2(fake tool call over real runtime) -> Step3/3.5/4(fake) -> Step5 render`，用于证明 v12 当前能从 raw PDF 起步生成 `qa_alignment.json`、`question_bank.json`、`index.html` 和 evidence report。
+
+## 11. Spec 生成入口
+
+- 新增 `skills/exam-import/assets/import_spec.standard.template.json` 作为 v12 标准 spec 样板，保留 source、MinerU、LLM、cache、steps 的完整字段。
+- 新增 `exam_import/cli/generate_spec.py`，只从标准样板读取 JSON，并用命令行参数覆盖字段后写出 spec；不扫描 PDF、不推断题型、不调用模型。
+- `--source-only` 会移除 `llm` 段，用于先快速生成可给 `source_import.py` 使用的 source-only spec。
+- 生成后仍通过 `schemas/import_spec.py` 做结构校验，避免写出缺少 mode 必需 source 的 spec。

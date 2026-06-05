@@ -1,15 +1,15 @@
 {
   "schema_version": "import_spec_v2",
-  "run_id": "<run_id>",
-  "input_mode": "paper_plus_answer",
+  "run_id": "",
+  "input_mode": "pure_paper",
   "runtime_root": ".",
   "runs_root": "runs",
   "sources": {
-    "paper_pdf": "<paper.pdf>",
+    "paper_pdf": "",
     "paper_prepared_dir": "",
     "paper_page_range": "",
     "paper_extractor": "mineru_vlm",
-    "answer_pdf": "<answer.pdf>",
+    "answer_pdf": "",
     "answer_prepared_dir": "",
     "answer_page_range": "",
     "answer_extractor": "mineru_vlm",
@@ -19,7 +19,8 @@
   },
   "source_rules": {
     "paper": "题面来源",
-    "answer": "答案解析来源"
+    "answer": "答案解析来源",
+    "mixed": "题面与答案解析混合来源"
   },
   "mineru": {
     "token_file": ".mineru_token",

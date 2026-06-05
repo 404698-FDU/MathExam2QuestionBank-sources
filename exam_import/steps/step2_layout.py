@@ -130,6 +130,7 @@ def build_qa_alignment_document(
         source_parts = ["mixed"]
     else:
         answer_lookup = {item.question_no: item for item in answer_ranges_typed}
+        answer_visual_owner = _visual_label_owner(answer_ranges_typed, answer_blocks)
         rows = [
             _build_separate_row(
                 alignment_mode=alignment_mode,
@@ -138,6 +139,7 @@ def build_qa_alignment_document(
                 question_index=question_index,
                 answer_range=answer_lookup.get(item.question_no),
                 answer_blocks=answer_blocks,
+                answer_visual_owner=answer_visual_owner,
             )
             for item in question_ranges_typed
         ]
@@ -261,6 +263,37 @@ def _block_order_map(blocks: list[PacketBlock]) -> dict[str, tuple[int, int, str
     return {item.label: (item.page, item.order, item.label) for item in blocks}
 
 
+def _visual_label_owner(ranges: list[RangeResult], blocks: list[PacketBlock]) -> dict[str, int]:
+    block_by_label = {item.label: item for item in blocks}
+    owner: dict[str, int] = {}
+    for range_result in ranges:
+        for label in range_result.visual_labels:
+            if _is_page_or_visual_label(block_by_label.get(label)):
+                owner[label] = range_result.question_no
+    return owner
+
+
+def _answer_labels_for_range(
+    *,
+    answer_range: RangeResult,
+    answer_blocks: list[PacketBlock],
+    answer_visual_owner: dict[str, int],
+) -> list[str]:
+    block_order = _block_order_map(answer_blocks)
+    raw_labels = _labels_for_range(range_result=answer_range, blocks=answer_blocks)
+    owned_visual_labels = [
+        label
+        for label in answer_range.visual_labels
+        if answer_visual_owner.get(label) == answer_range.question_no
+    ]
+    filtered_labels = [
+        label
+        for label in raw_labels
+        if answer_visual_owner.get(label, answer_range.question_no) == answer_range.question_no
+    ]
+    return _merge_labels(filtered_labels, owned_visual_labels, block_order)
+
+
 def _build_mixed_row(
     *,
     range_result: RangeResult,
@@ -303,6 +336,7 @@ def _build_separate_row(
     question_index: dict[str, PacketBlock],
     answer_range: RangeResult | None,
     answer_blocks: list[PacketBlock],
+    answer_visual_owner: dict[str, int],
 ) -> QAAlignmentRow:
     core_labels = _labels_for_range(range_result=range_result, blocks=question_blocks)
     block_order = _block_order_map(question_blocks)
@@ -335,7 +369,11 @@ def _build_separate_row(
         )
         alignment_status = "needs_review"
     else:
-        answer_labels = _labels_for_range(range_result=answer_range, blocks=answer_blocks)
+        answer_labels = _answer_labels_for_range(
+            answer_range=answer_range,
+            answer_blocks=answer_blocks,
+            answer_visual_owner=answer_visual_owner,
+        )
         answer = AnswerSide(
             status="found",
             source_mode="pure_answer",
@@ -370,6 +408,7 @@ def _build_answer_patch_rows(
     answer_blocks: list[PacketBlock],
 ) -> tuple[list[QAAlignmentRow], list[int], list[int]]:
     answer_lookup = {item.question_no: item for item in answer_ranges}
+    answer_visual_owner = _visual_label_owner(answer_ranges, answer_blocks)
     question_numbers = {row.question_no for row in existing_alignment.qa_alignment}
     extra_numbers = sorted(set(answer_lookup) - question_numbers)
     rows: list[QAAlignmentRow] = []
@@ -385,7 +424,11 @@ def _build_answer_patch_rows(
             )
             alignment_status = "needs_review"
         else:
-            answer_labels = _labels_for_range(range_result=answer_range, blocks=answer_blocks)
+            answer_labels = _answer_labels_for_range(
+                answer_range=answer_range,
+                answer_blocks=answer_blocks,
+                answer_visual_owner=answer_visual_owner,
+            )
             answer = AnswerSide(
                 status="found",
                 source_mode="answer_patch",

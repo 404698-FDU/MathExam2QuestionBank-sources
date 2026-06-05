@@ -7,7 +7,7 @@ description: Run the v12 math exam import and parsing pipeline. Use when Codex i
 
 ## Core Rule
 
-Treat an import as a reproducible v12 run, not an ad hoc fix. First convert the user's request into an explicit `import_spec_v2`; then validate it; then run the v12 source import and pipeline entrypoints; then report real artifacts and counts. Do not hand-edit final question JSON to hide pipeline failures.
+Treat an import as a reproducible v12 run, not an ad hoc fix. First convert the user's request into an explicit `import_spec_v2`; prefer generating it from the standard template with `generate_spec.py`; then validate it; then run the v12 source import and pipeline entrypoints; then report real artifacts and counts. Do not hand-edit final question JSON to hide pipeline failures.
 
 ## Required Inputs
 
@@ -18,7 +18,7 @@ Before running, make sure these are known or intentionally defaulted:
 - source inputs: exact PDF paths or prepared source-part directories for paper, answer, or mixed content.
 - page ranges: required when one PDF contains multiple parts or only part of a PDF should be imported.
 - source rules: short provenance notes for paper, answer, or mixed content.
-- v12 LLM config: provider, primary model, step call spec paths, timeout, worker count, thinking flag.
+- v12 LLM config for Step2-Step5: provider, primary model, step call spec paths, timeout, worker count, thinking flag. It is not required for source-import-only runs.
 - cache policy: whether existing OCR may be reused, whether source extraction and pipeline outputs are forced.
 - expected outcome: expected question count, known missing answers, and review focus.
 
@@ -28,7 +28,14 @@ If a required value affects correctness and cannot be inferred from local files,
 
 1. Locate the bundled v12 runtime at the repository root containing `exam_import/`, `prompts/`, `tool_schemas/`, `provider_config/`, and `call_specs/`. Do not use v11 unless the user explicitly asks for legacy behavior.
 2. Read current v12 code and existing artifacts before assuming behavior. Confirm available modes and CLI arguments from local files.
-3. Draft an `import_spec_v2` using `assets/import_spec.template.json`.
+3. Generate an `import_spec_v2` from `assets/import_spec.standard.template.json`:
+
+```powershell
+python.exe <repo-root>/exam_import/cli/generate_spec.py --run-id <run_id> --input-mode <mode> --paper-pdf <paper.pdf>
+```
+
+Use `--source-only` when the immediate goal is only to create `source_runs/<run_id>`.
+
 4. Validate the spec:
 
 ```powershell
@@ -45,7 +52,8 @@ python.exe <repo-root>/exam_import/cli/validate_spec.py --spec <spec.json>
 
 - Read `references/import-spec.md` when deciding what the user must specify.
 - Read `references/v12-runtime.md` before running or modifying v12 commands.
-- Use `assets/import_spec.template.json` as the editable v12 spec starting point.
+- Use `assets/import_spec.standard.template.json` as the generator template.
+- Use `assets/import_spec.template.json` only as a manual editable example.
 - Use `<repo-root>/call_specs/` for per-step model call configs.
 - Use `<repo-root>/provider_config/` for provider/model static configs.
 - Use `<repo-root>/` as the bundled v12 implementation. It contains source import, Step2-Step5, prompt loading, provider/model config, schemas, rendering, and evidence reporting.

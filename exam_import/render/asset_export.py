@@ -13,6 +13,7 @@ from exam_import.sources.ocr_blocks import load_ocr_payload, load_packets
 
 
 PLACEHOLDER_RE = re.compile(r"<(img|table|chart)\s+src=\"([^\"]+)\">")
+IMG_SRC_RE = re.compile(r"<img\b[^>]*\bsrc=[\"']([^\"']+)[\"']", re.IGNORECASE)
 VISUAL_KINDS = {"image", "table", "chart"}
 
 
@@ -23,6 +24,9 @@ class SourceAssetRef:
     source_part: str
     block_id: str
     figure_id: str
+    page: int
+    packet_text: str
+    packet_path: str
 
 
 def export_render_assets(
@@ -104,7 +108,7 @@ def export_render_assets(
             exported_files.append(html_path.name)
             table_html_count += 1
 
-        source_image = _resolve_source_image_path(part_dir, block)
+        source_image = _resolve_source_image_path(part_dir, block, ref)
         if source_image is not None:
             raster_path = asset_root / f"{label}{source_image.suffix.lower()}"
             shutil.copy2(source_image, raster_path)
@@ -145,12 +149,12 @@ def export_render_assets(
 def _collect_asset_usage(records: list[QuestionRecord]) -> dict[str, set[str]]:
     usage: dict[str, set[str]] = {}
     for record in records:
-        segments = list(record.stem_markdown)
-        segments.extend(record.answer_markdown)
-        segments.extend(record.analysis_markdown)
-        for group in record.options_markdown:
+        segments = list(record.stem_latex)
+        segments.extend(record.answer_latex)
+        segments.extend(record.analysis_latex)
+        for group in record.options_latex:
             for option in group.options:
-                segments.extend(option.content_markdown)
+                segments.extend(option.content_latex)
         for segment in segments:
             for match in PLACEHOLDER_RE.finditer(segment):
                 tag = match.group(1)
@@ -174,6 +178,7 @@ def _build_source_asset_index(run_context: RunContext) -> dict[str, SourceAssetR
 
     for packet_dir, source_part in packet_plans:
         for packet in load_packets(packet_dir):
+            page = int(packet.get("page") or 0)
             for block in packet.get("blocks") or []:
                 kind = str(block.get("kind") or block.get("type") or "").lower()
                 if kind not in VISUAL_KINDS:
@@ -187,6 +192,9 @@ def _build_source_asset_index(run_context: RunContext) -> dict[str, SourceAssetR
                     source_part=source_part,
                     block_id=str(block.get("block_id") or ""),
                     figure_id=str(block.get("figure_id") or ""),
+                    page=page,
+                    packet_text=str(block.get("text") or ""),
+                    packet_path=str(block.get("path") or ""),
                 )
                 previous = index.get(label)
                 if previous is not None and previous != ref:
@@ -234,24 +242,67 @@ def _extract_table_html(block: dict[str, Any]) -> str:
     return ""
 
 
-def _resolve_source_image_path(part_dir: Path, block: dict[str, Any]) -> Path | None:
+def _resolve_source_image_path(part_dir: Path, block: dict[str, Any], ref: SourceAssetRef) -> Path | None:
     mineru_item = block.get("mineru_item") or {}
     candidates: list[Path] = []
+    page = ref.page or int(block.get("page") or 0)
+    if page <= 0:
+        page_idx = int(mineru_item.get("page_idx") or -1)
+        if page_idx >= 0:
+            page = page_idx + 1
+    for image_src in _iter_original_img_srcs(ref, block):
+        _append_source_path_candidates(candidates, part_dir, image_src, page)
     for path_text in (
+        ref.packet_path,
         str(block.get("path") or "").strip(),
         str(mineru_item.get("img_path") or "").strip(),
     ):
-        if not path_text:
-            continue
-        normalized = Path(path_text.replace("\\", "/"))
-        if normalized.is_absolute():
-            candidates.append(normalized)
-        else:
-            candidates.append(part_dir / normalized)
-            candidates.append(part_dir / "mineru_extract" / normalized)
-            candidates.append(part_dir / "mineru_extract" / "images" / normalized.name)
-            candidates.append(part_dir / "images" / normalized.name)
+        _append_source_path_candidates(candidates, part_dir, path_text, page)
     for candidate in candidates:
         if candidate.exists() and candidate.is_file():
             return candidate.resolve()
     return None
+
+
+def _iter_original_img_srcs(ref: SourceAssetRef, block: dict[str, Any]) -> list[str]:
+    mineru_item = block.get("mineru_item") or {}
+    sources: list[str] = []
+    for text in (
+        ref.packet_text,
+        str(block.get("text") or ""),
+        str(mineru_item.get("content") or ""),
+    ):
+        if not text:
+            continue
+        for match in IMG_SRC_RE.finditer(text):
+            value = match.group(1).strip()
+            if value and value not in sources:
+                sources.append(value)
+    return sources
+
+
+def _append_source_path_candidates(candidates: list[Path], part_dir: Path, path_text: str, page: int) -> None:
+    value = str(path_text or "").strip()
+    if not value:
+        return
+    normalized = Path(value.replace("\\", "/"))
+    candidate_list: list[Path] = []
+    if normalized.is_absolute():
+        candidate_list.append(normalized)
+    else:
+        candidate_list.extend(
+            [
+                part_dir / normalized,
+                part_dir / "mineru_extract" / normalized,
+                part_dir / "mineru_extract" / "images" / normalized.name,
+                part_dir / "images" / normalized.name,
+            ]
+        )
+        if page > 0:
+            candidate_list.append(part_dir / "paddleocr_assets" / f"page_{page:03d}" / normalized)
+    existing = {str(path) for path in candidates}
+    for candidate in candidate_list:
+        key = str(candidate)
+        if key not in existing:
+            candidates.append(candidate)
+            existing.add(key)

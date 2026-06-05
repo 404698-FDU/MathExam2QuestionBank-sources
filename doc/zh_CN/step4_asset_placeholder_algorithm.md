@@ -84,10 +84,10 @@ Step4 运行前应构建四类索引。
 扫描所有 Step3 records 的字段：
 
 ```text
-stem_markdown
-options_markdown[].options[].content_markdown
-answer_markdown
-analysis_markdown
+stem_latex
+options_latex[].options[].content_latex
+answer_latex
+analysis_latex
 ```
 
 提取这些占位：
@@ -104,7 +104,7 @@ analysis_markdown
 {
   "asset_label": "Q-V02-P01",
   "question_no": 12,
-  "field": "stem_markdown",
+  "field": "stem_latex",
   "option_group_no": "",
   "option_label": "",
   "placeholder": "<img src=\"Q-V02-P01\">",
@@ -177,13 +177,13 @@ action = add_placeholder
 插入位置：
 
 ```text
-target_field=stem_markdown      -> insert_position=append_to_field_end，追加到 stem_markdown 数组最后
-target_field=answer_markdown    -> insert_position=append_to_field_end，追加到 answer_markdown 数组最后
-target_field=analysis_markdown  -> insert_position=append_to_field_end，追加到 analysis_markdown 数组最后
-target_field=options_markdown   -> insert_position=append_to_option_end，追加到对应 option 的 content_markdown 数组最后
+target_field=stem_latex      -> insert_position=append_to_field_end，追加到 stem_latex 数组最后
+target_field=answer_latex    -> insert_position=append_to_field_end，追加到 answer_latex 数组最后
+target_field=analysis_latex  -> insert_position=append_to_field_end，追加到 analysis_latex 数组最后
+target_field=options_latex   -> insert_position=append_to_option_end，追加到对应 option 的 content_latex 数组最后
 ```
 
-`options_markdown` 特殊约束：
+`options_latex` 特殊约束：
 
 - 必须能确认 `option_group_no` 和 `option_label`。
 - 如果只能确认是选项图，但不能确认哪个选项，不得自动插入，输出 `review_required`。
@@ -259,11 +259,11 @@ Step4 输出后必须执行本地校验：
 - 每个输入 asset label 在输出中出现且只出现一次。
 - 不允许输出 `placements[]`。
 - 除 `ignore_asset` 和 `review_required` 外，`question_no` 必须来自候选题号。
-- `target_field` 必须是 `stem_markdown`、`options_markdown`、`answer_markdown`、`analysis_markdown` 或 `none`。
+- `target_field` 必须是 `stem_latex`、`options_latex`、`answer_latex`、`analysis_latex` 或 `none`。
 - `placeholder` 的 `src` 必须等于资产 label。
-- `target_field=options_markdown` 时必须有 `option_group_no` 和 `option_label`。
-- `append_to_field_end` 只能用于 `stem_markdown`、`answer_markdown`、`analysis_markdown`。
-- `append_to_option_end` 只能用于 `options_markdown`，且必须指定 `option_group_no` 和 `option_label`。
+- `target_field=options_latex` 时必须有 `option_group_no` 和 `option_label`。
+- `append_to_field_end` 只能用于 `stem_latex`、`answer_latex`、`analysis_latex`。
+- `append_to_option_end` 只能用于 `options_latex`，且必须指定 `option_group_no` 和 `option_label`。
 - `orphan` 不得自动 `add_placeholder` 或 `move_placeholder`。
 - 同一 `asset_label` 在 Step3 多处出现时，同步阶段必须删除非最终目标位置。
 

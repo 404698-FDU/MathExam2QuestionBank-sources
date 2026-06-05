@@ -2,6 +2,20 @@
 
 Use this reference when converting a user request into a v12 machine-checkable import spec.
 
+## Generator
+
+Prefer generating new v12 specs from the standard template instead of copying an old run spec by hand:
+
+```powershell
+python.exe exam_import/cli/generate_spec.py `
+  --run-id shanghai_2026_spring_paper_answer `
+  --input-mode paper_plus_answer `
+  --paper-pdf D:/path/to/paper.pdf `
+  --answer-pdf D:/path/to/answer.pdf
+```
+
+For fast source import only, add `--source-only`; the generated spec omits `llm` because `source_import.py` does not need model settings.
+
 ## Minimal Shape
 
 ```json

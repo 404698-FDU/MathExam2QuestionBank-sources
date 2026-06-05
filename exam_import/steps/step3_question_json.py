@@ -19,7 +19,7 @@ from exam_import.prompts.loader import PromptLoader
 from exam_import.schemas.common import IssueRecord
 from exam_import.schemas.common import ValidationError
 from exam_import.schemas.qa_alignment import QAAlignmentDocument
-from exam_import.schemas.question_record import QuestionRecord
+from exam_import.schemas.question_record import QuestionRecord, ensure_options_placeholders_in_payload
 
 
 ASSET_PLACEHOLDER_RE = re.compile(r"<(img|table|chart)\s+src=\"([^\"]+)\">")
@@ -103,12 +103,33 @@ def parse_step3_response(
     expected_question_no: int,
 ) -> QuestionRecord:
     payload = parse_tool_call_arguments(response, expected_tool_name=expected_tool_name)
+    _drop_empty_latex_segments(payload)
+    ensure_options_placeholders_in_payload(payload)
     record = QuestionRecord.from_dict(payload)
     if record.question_no != expected_question_no:
         raise ValidationError(
             f"Step3 returned question_no={record.question_no}, expected {expected_question_no}"
         )
     return record
+
+
+def _drop_empty_latex_segments(payload: dict[str, Any]) -> None:
+    for field_name in ("stem_latex", "answer_latex", "analysis_latex"):
+        value = payload.get(field_name)
+        if isinstance(value, list):
+            payload[field_name] = [item for item in value if str(item).strip()]
+    options = payload.get("options_latex")
+    if not isinstance(options, list):
+        return
+    for group in options:
+        if not isinstance(group, dict):
+            continue
+        for option in group.get("options") or []:
+            if not isinstance(option, dict):
+                continue
+            content = option.get("content_latex")
+            if isinstance(content, list):
+                option["content_latex"] = [item for item in content if str(item).strip()]
 
 
 def sanitize_step3_asset_placeholders(
@@ -120,13 +141,13 @@ def sanitize_step3_asset_placeholders(
     payload = record.to_dict()
     removed_labels: set[str] = set()
 
-    for field_name in ("stem_markdown", "answer_markdown", "analysis_markdown"):
+    for field_name in ("stem_latex", "answer_latex", "analysis_latex"):
         payload[field_name], removed = _filter_asset_placeholders(payload[field_name], allowed_labels)
         removed_labels.update(removed)
 
-    for group in payload["options_markdown"]:
+    for group in payload["options_latex"]:
         for option in group["options"]:
-            option["content_markdown"], removed = _filter_asset_placeholders(option["content_markdown"], allowed_labels)
+            option["content_latex"], removed = _filter_asset_placeholders(option["content_latex"], allowed_labels)
             removed_labels.update(removed)
 
     if removed_labels:
@@ -181,6 +202,10 @@ def write_step3_outputs(
     records: list[QuestionRecord],
     model_name: str,
     errors: list[dict[str, Any]] | None = None,
+    elapsed_seconds: float | None = None,
+    retry_count: int = 0,
+    attempt_count: int | None = None,
+    worker_count: int = 1,
 ) -> dict[str, Any]:
     per_question_dir = run_context.question_bank_dir / "per_question"
     per_question_dir.mkdir(parents=True, exist_ok=True)
@@ -196,7 +221,12 @@ def write_step3_outputs(
         "error_count": len(errors or []),
         "record_schema_version": "image_only_question_standardization_v1",
         "question_numbers": [int(item["question_no"]) for item in record_payloads],
+        "worker_count": worker_count,
+        "retry_count": retry_count,
+        "attempt_count": attempt_count if attempt_count is not None else len(record_payloads) + len(errors or []),
     }
+    if elapsed_seconds is not None:
+        summary["elapsed_seconds"] = elapsed_seconds
     if errors:
         write_json(run_context.question_bank_dir / "errors.json", errors)
     write_json(run_context.question_bank_dir / "summary.json", summary)

@@ -1,4 +1,4 @@
-# Step3.5 Full Markdown/LaTeX Normalize Prompt
+# Step3.5 Full LaTeX Normalize Prompt
 
 来源代码：`step35_normalize.py`
 
@@ -7,7 +7,7 @@
 兼容关系：
 
 - 输入 `record` 必须是 Step3 输出的 `image_only_question_standardization_v1` 结构。
-- 输出字段必须与 Step3 完全一致：`schema_version`、`question_no`、`stem_markdown`、`options_markdown`、`answer_markdown`、`analysis_markdown`、`issues`。
+- 输出字段必须与 Step3 完全一致：`schema_version`、`question_no`、`stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`、`issues`。
 - 不保留旧版 `question_type`、`stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`、`rubric_latex` 字段。
 - Step3.5 不产生新题目内容，只对 Step3 已输出内容做 JSON 字符串、LaTeX 包裹、LaTeX 定界、HTML 实体、占位标签和字段一致性修复。
 - `audit_findings` 只是脚本审计提示，不是修复范围上限；模型必须对完整记录做全量检查。
@@ -36,32 +36,58 @@
   "record": {
     "schema_version": "image_only_question_standardization_v1",
     "question_no": 1,
-    "stem_markdown": [],
-    "options_markdown": [
+    "stem_latex": [],
+    "options_latex": [
       {
         "no": "1",
         "options": [
           {
             "label": "A",
-            "content_markdown": []
+            "content_latex": []
           }
         ]
       }
     ],
-    "answer_markdown": [],
-    "analysis_markdown": [],
+    "answer_latex": [],
+    "analysis_latex": [],
     "issues": []
   },
     "audit_findings": [
     {
-      "field": "stem_markdown",
-      "path": "stem_markdown[0]",
+      "field": "stem_latex",
+      "path": "stem_latex[0]",
       "reason": "math_condition_split_across_text_connector",
       "text": "<problem_text>"
     }
   ]
 }
 ```
+
+## 本地 audit_findings 规则
+
+`audit_findings` 由 `step35_normalize.py` 在发送模型前生成。Step3.5 仍会把每道题完整送入模型；这些 finding 只用于提示重点问题，不是修复范围上限。
+
+逐段文本审计覆盖 `stem_latex`、`options_latex[].options[].content_latex`、`answer_latex`、`analysis_latex`：
+
+- `html_entity_present`：字段中含 `&gt;`、`&lt;`、`&amp;`、`&nbsp;`、数字实体等 HTML 实体。
+- `embedded_newline`：数组元素中包含真实换行。
+- `math_condition_split_across_text_connector`：相邻数学片段被“且/或/并且”等中文连接词拆开。
+- `left_right_count_mismatch`：数学环境内 `\left` 与 `\right` 数量不一致。
+- `blank_inside_math`：`<blank>` 位于 `$...$` 或 `$$...$$` 内。
+- `choice_blank_inside_math`：`<choice_blank>` 位于 `$...$` 或 `$$...$$` 内。
+- `asset_placeholder_inside_math`：`<img src="...">`、`<table src="...">`、`<chart src="...">` 位于数学环境内。
+- `latex_command_outside_math`：普通文本段中出现 `\frac`、`\sqrt`、`\leq` 等 LaTeX 命令。
+- `math_relation_outside_math`：普通文本段中出现类似 `a < b`、`x=1`、`t \geq 2` 的数学关系。
+- `subsup_outside_math`：普通文本段中出现未进入数学环境的上下标。
+- `unknown_placeholder_tag`：字段中出现白名单之外的尖括号标签。
+
+整题级审计覆盖选项题占位：
+
+- `options_group_reference_mismatch`：`stem_latex` 中的 `<options no="...">` 与 `options_latex` 分组不一致。
+- `missing_choice_blank`：`options_latex` 非空，但题干没有 `<choice_blank>`。
+- `duplicate_choice_blank`：`options_latex` 非空，且题干中出现多个 `<choice_blank>`。
+- `raw_choice_blank_not_normalized`：`options_latex` 非空，且题干仍保留 `（）` 或 `( )` 这类原始选择题空位。
+- `choice_blank_in_options`：选项内容中出现 `<choice_blank>`。
 
 ## system prompt
 
@@ -70,16 +96,16 @@
 ```text
 /no_think
 
-你是中文数学题库 Markdown 与 LaTeX 全量规范化工具。
+你是中文数学题库 LaTeX 全量规范化工具。
 本次任务必须通过调用工具 submit_step3_5_record 完成。
 不得在普通回复正文中写 JSON、Markdown、代码块、解释或分析过程。
 不得使用 message.content 提交结果。
 
 你必须完整审计输入记录中的所有文字字段：
-- stem_markdown
-- options_markdown[].options[].content_markdown
-- answer_markdown
-- analysis_markdown
+- stem_latex
+- options_latex[].options[].content_latex
+- answer_latex
+- analysis_latex
 
 你只修复 Step3 单题记录中的格式问题，包括 JSON 字符串合法性、LaTeX 包裹、LaTeX 定界、LaTeX 转义、HTML 实体、占位标签位置和选项组引用一致性。
 不得解题、不得改写题意、不得增删图片中没有出现的内容、不得新增题目类型字段、不得把解析内容改写成答案。
@@ -92,15 +118,15 @@
 请对整道题做完整文字审计，并输出完整规范化后的单题记录。
 
 任务边界：
-- 必须完整检查 stem_markdown、options_markdown[].options[].content_markdown、answer_markdown、analysis_markdown，不得只处理 audit_findings 指出的局部文本。
+- 必须完整检查 stem_latex、options_latex[].options[].content_latex、answer_latex、analysis_latex，不得只处理 audit_findings 指出的局部文本。
 - audit_findings 只是重点提示；即使 audit_findings 为空，也要全量审计所有文字字段。
 - 只在原字段内修复格式，除 issues 中明显已经不成立的格式类提示外，不改变字段含义。
 - 输出字段必须与 Step3 审定结构完全一致，不得输出 question_type、rubric_latex 或任何旧版字段。
 - schema_version 必须保持为 image_only_question_standardization_v1。
 - question_no 必须保持不变。
-- stem_markdown、answer_markdown、analysis_markdown 都必须是 JSON 字符串数组。
-- options_markdown 必须是选项组数组；每个选项组包含 no 和 options；每个选项包含 label 和 content_markdown。
-- content_markdown 必须是 JSON 字符串数组。
+- stem_latex、answer_latex、analysis_latex 都必须是 JSON 字符串数组。
+- options_latex 必须是选项组数组；每个选项组包含 no 和 options；每个选项包含 label 和 content_latex。
+- content_latex 必须是 JSON 字符串数组。
 - 所有数组元素都必须是单行 JSON 字符串，禁止包含真实换行或 \n。
 - 不要输出空字符串数组项。
 
@@ -127,13 +153,13 @@ LaTeX 修复规则：
 - 如果原文作答位是 `（）`、`( )`、空括号或类似选择题空位，应统一为 <choice_blank>。
 - <choice_blank> 不应放到选项内；它属于题干作答位置。
 - 只允许使用这些占位标签：<blank>、<choice_blank>、<options no="...">、<img src="...">、<table src="...">、<chart src="...">。
-- stem_markdown 中每个 <options no="..."> 都必须在 options_markdown 中有且仅有一个同 no 的选项组。
-- options_markdown 中不得出现 stem_markdown 未引用的选项组，除非原记录已存在且无法安全删除；此时在 issues 中保留或新增 boundary_suspect。
+- 只要 options_latex 非空，stem_latex 就必须显式包含对应的 `<options no="...">` 占位，不允许依赖渲染阶段自动补出选项。
+- stem_latex 中出现的 `<options no="...">` 或 `<options no="..."/>`，都必须在 options_latex 中有且仅有一个同 no 的选项组；反过来，options_latex 中的每个选项组也都必须在 stem_latex 中被显式引用一次。
 - 图片、表格、图表占位标签不得放入数学环境。
 
 内容边界：
-- 不得从 analysis_markdown 反推或摘取答案到 answer_markdown。
-- 不得把 answer_markdown 中的最终答案扩写为解析。
+- 不得从 analysis_latex 反推或摘取答案到 answer_latex。
+- 不得把 answer_latex 中的最终答案扩写为解析。
 - 不得删除或改写原有中文、英文、数字和标点。
 - issues 字段保留原有含义；除非只是删除已经明显不再成立的格式类提示，否则不要新增业务判断。
 - 如果只能确认局部内容，保留能确认的内容，并在 issues 中记录真实问题。
@@ -164,10 +190,10 @@ LaTeX 修复规则：
       "required": [
         "schema_version",
         "question_no",
-        "stem_markdown",
-        "options_markdown",
-        "answer_markdown",
-        "analysis_markdown",
+        "stem_latex",
+        "options_latex",
+        "answer_latex",
+        "analysis_latex",
         "issues"
       ],
       "properties": {
@@ -181,7 +207,7 @@ LaTeX 修复规则：
           "type": "integer",
           "description": "必须与输入记录题号一致。"
         },
-        "stem_markdown": {
+        "stem_latex": {
           "type": "array",
           "description": "题面正文段落数组，不含题号。可包含 <blank>、<choice_blank>、<options no=\"1\">、<img src=\"...\">、<table src=\"...\">、<chart src=\"...\">。",
           "items": {
@@ -189,9 +215,9 @@ LaTeX 修复规则：
             "minLength": 1
           }
         },
-        "options_markdown": {
+        "options_latex": {
           "type": "array",
-          "description": "按 stem_markdown 中 <options no=\"...\"> 的顺序输出选项组。",
+          "description": "按 stem_latex 中 <options no=\"...\"> 的顺序输出选项组。",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -212,14 +238,14 @@ LaTeX 修复规则：
                   "additionalProperties": false,
                   "required": [
                     "label",
-                    "content_markdown"
+                    "content_latex"
                   ],
                   "properties": {
                     "label": {
                       "type": "string",
                       "description": "原文选项标识，例如 A、B、C、D、甲、乙、①、②。"
                     },
-                    "content_markdown": {
+                    "content_latex": {
                       "type": "array",
                       "items": {
                         "type": "string",
@@ -232,7 +258,7 @@ LaTeX 修复规则：
             }
           }
         },
-        "answer_markdown": {
+        "answer_latex": {
           "type": "array",
           "description": "明确独立给出的最终答案、答案行、答案表或各小题答案；没有则为空数组。",
           "items": {
@@ -240,7 +266,7 @@ LaTeX 修复规则：
             "minLength": 1
           }
         },
-        "analysis_markdown": {
+        "analysis_latex": {
           "type": "array",
           "description": "答案/解析图中实际可见的完整解析内容；没有则为空数组。",
           "items": {
@@ -329,3 +355,4 @@ LaTeX 修复规则：
 - 后处理仍应执行 before/after audit 和内容指纹保护；格式修复不得造成题意、答案、解析或可见文字语义变化。
 - 返回结果不得包含旧版 `question_type`、`stem_latex`、`options_latex`、`answer_latex`、`analysis_latex`、`rubric_latex` 字段。
 - Step3.5 不得替代 Step3 的内容转写和字段归类。
+

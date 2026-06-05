@@ -41,47 +41,57 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 2. question_no
 - 必须等于 {question_no}。
 
-3. stem_markdown
+3. stem_latex
 - 填第 {question_no} 题题面从开始到结束的所有内容，包含题干、选项插入位置、小问、表格和必要图形占位。
 - 不写题号。
-- 若题面中混入明显答案或解析，不要填入这里，应放入 answer_markdown 或 analysis_markdown；若无法判断，在 issues 记录 boundary_suspect。
+- 若题面中混入明显答案或解析，不要填入这里，应放入 answer_latex 或 analysis_latex；若无法判断，在 issues 记录 boundary_suspect。
+- mixed 解析卷中，题面、分析和解答可能出现在同一张裁剪图里；第 {question_no} 题题号之后、【分析】、【解答】、【答案】等解析标记之前的所有文字均属于题面。
+- 以（1）、（2）、①、② 等开头的小问条件和作答要求必须完整保留在 stem_latex 中，不得遗漏，不得移入 answer_latex 或 analysis_latex。
 - 试题若有多栏，按照正常阅读顺序填写。
 - 如有填空位置，写 <blank>；如有选择题作答位置，写 <choice_blank>。
-- 如试题中出现选择题选项组，请在原位置插入选项组标识，例如 <options no="1">，并在 options_markdown 中填写 no="1" 的选项组。
+- 只有题面中存在可见选项组，且原题确有选择题作答空位时，才允许写 <choice_blank>；无选项题一律使用 <blank>。
+- 如果原题同一个空位跨行出现，应合并为一个占位，不要把同一个空位拆成多个 <blank> 或 <choice_blank>。
+- 只要 options_latex 非空，stem_latex 就必须显式包含对应的选项组占位 `<options no="...">`。
+- 如试题中出现选择题选项组，必须在原位置插入选项组标识，例如 <options no="1">，并在 options_latex 中填写 no="1" 的选项组。
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
+- 同一数学表达式必须完整放在一个数学环境内，不得把 \overline、\frac、\sqrt、\begin{...}、上下标或关系符号拆到数学环境外。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 如果某个位置需要插入图片、表格或图表，使用 <img src="...">、<table src="..."> 或 <chart src="...">。
 - 示例：<img src="Q-V02-P01">、<table src="M-V02-T01">、<chart src="M-V02-C01">。
 - 不得自行发明 <img src="...">、<table src="..."> 或 <chart src="..."> 的 src 标签；只有输入裁剪图中明确标注或上游上下文提供的资产标签才允许使用。
 - 如果能看出原题有图片、表格或图表，但没有可确认的资产标签，不要写占位标签；在 issues 中记录 content_missing。
 
-4. options_markdown
-- 按 stem_markdown 中 <options no="..."> 出现顺序填写。
+4. options_latex
+- 按 stem_latex 中 <options no="..."> 出现顺序填写。
+- 如果题面没有可见选项组，options_latex 必须输出空数组 []，不得猜测为选择题或虚构选项组。
 - 每个选项组必须包含 no 和 options。
-- no 必须与 stem_markdown 中的 <options no="..."> 一致。
-- options 中每个子元素表示一个选项，包含 label 和 content_markdown。
+- no 必须与 stem_latex 中的 <options no="..."> 一致。
+- 不允许出现“options_latex 非空，但 stem_latex 没有 `<options no=\"...\">` 占位”的情况。
+- options_latex 为空时，stem_latex 中禁止出现 <choice_blank>。
+- options 中每个子元素表示一个选项，包含 label 和 content_latex。
 - label 写原文选项标识，例如 A、B、C、D、甲、乙、①、②。
-- content_markdown 只写选项正文，不写 A.、B.、(A)、(B) 等标签。
+- content_latex 只写选项正文，不写 A.、B.、(A)、(B) 等标签。
 - 多个选项必须分别写入多个子元素，不得合并。
-- 如果某个选项只有图、表或图表，没有文字，应在 content_markdown 中写对应占位，例如 <img src="Q-V02-P01">。
+- 如果某个选项只有图、表或图表，没有文字，应在 content_latex 中写对应占位，例如 <img src="Q-V02-P01">。
 - 试题若有多栏，按照阅读顺序识别，但选项输出按原文选项标识顺序排列。
 
-5. answer_markdown
+5. answer_latex
 - 只填写题面图或答案/解析图中明确独立给出的最终答案、答案行、答案表或各小题答案。
 - 若没有明确独立答案，输出空数组 []。
 - 不得从解析过程中反推、摘取或概括出答案。
+- 如果答案/解析图是多题共用答案表、答案列表或解析拼版，只提取第 {question_no} 题对应内容；无法确定对应项时，不得猜测，应输出空数组 [] 并在 issues 中记录 boundary_suspect 或 answer_missing。
 - 若题面图中的答案与答案/解析图中的答案矛盾，在 issues 中记录 type_conflict。
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 可使用 <img src="...">、<table src="..."> 或 <chart src="..."> 表示原文中的图片、表格或图表。
 - 不得自行发明资产标签；没有可确认标签时不要写占位标签，并在 issues 中记录 content_missing。
 
-6. analysis_markdown
+6. analysis_latex
 - 填答案/解析图中实际可见的完整解析内容，包括解答步骤、证明过程、计算过程、思路分析、点评、验证和结论理由。
 - 如果解析中重复包含完整试题，应跳过重复试题部分，从真正的解答步骤、证明过程、计算过程、思路分析或点评开始填写。
-- 如果答案/解析图只给出最终答案、答案表或答案列表，没有可见解析步骤，则 analysis_markdown 必须输出空数组 []。
-- analysis_markdown 只能来自答案/解析图中实际可见的内容，不得根据题面和答案自行推导、补写或生成解析。
-- 答案/解析裁剪图中每一个可见的有效文本块都要在 answer_markdown 或 analysis_markdown 中出现；其中解题过程、比较过程、证明收尾必须放入 analysis_markdown。
+- 如果答案/解析图只给出最终答案、答案表或答案列表，没有可见解析步骤，则 analysis_latex 必须输出空数组 []。
+- analysis_latex 只能来自答案/解析图中实际可见的内容，不得根据题面和答案自行推导、补写或生成解析。
+- 答案/解析裁剪图中每一个可见的有效文本块都要在 answer_latex 或 analysis_latex 中出现；其中解题过程、比较过程、证明收尾必须放入 analysis_latex。
 - 如果解析看不清，保留能确认的内容，并在 issues 中记录 image_unclear。
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
@@ -92,7 +102,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 没有问题时输出空数组 []。
 - 只记录真实问题，不写格式说明。
 - 可用 type：image_unclear、boundary_suspect、answer_missing、type_conflict、content_missing、foreign_content、other。
-- 当且仅当 answer_markdown 和 analysis_markdown 均为空时，记录 answer_missing。
+- 当且仅当 answer_latex 和 analysis_latex 均为空时，记录 answer_missing。
 - severity 只能是 info、warning、error。
 - 每个 issue 必须包含 type、severity、message。
 
@@ -107,3 +117,4 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 
 再次强调：必须调用工具 image_only_question_standardization。普通正文保持为空。
 ```
+

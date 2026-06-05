@@ -10,7 +10,7 @@ from .common import ValidationError, expect_float, expect_list, expect_mapping, 
 @dataclass(frozen=True)
 class AnswerTableEntry:
     question_no: int
-    answer_markdown: list[str]
+    answer_latex: list[str]
     confidence: float
     reason: str
 
@@ -24,7 +24,7 @@ class AnswerTableEntry:
             raise ValidationError("entries[].question_no must be a positive integer")
         return cls(
             question_no=question_no,
-            answer_markdown=expect_string_list(payload, "answer_markdown", allow_empty=False),
+            answer_latex=expect_string_list(payload, "answer_latex", allow_empty=False),
             confidence=expect_float(payload, "confidence", default=1.0),
             reason=expect_string(payload, "reason"),
         )
@@ -55,7 +55,7 @@ class AnswerTableResult:
         if role not in {"answer_key_table", "analysis_table", "noise", "uncertain"}:
             raise ValidationError(f"Unsupported table role: {role}")
         target_field = expect_string(payload, "target_field")
-        if target_field not in {"answer_markdown", "analysis_markdown", "none"}:
+        if target_field not in {"answer_latex", "analysis_latex", "none"}:
             raise ValidationError(f"Unsupported table target_field: {target_field}")
         entries_payload = expect_list(payload, "entries")
         entries = [
@@ -63,15 +63,15 @@ class AnswerTableResult:
             for index, item in enumerate(entries_payload)
         ]
         if role == "answer_key_table":
-            target_field = "answer_markdown"
+            target_field = "answer_latex"
         elif role == "analysis_table":
-            target_field = "analysis_markdown"
+            target_field = "analysis_latex"
         elif role in {"noise", "uncertain"}:
             target_field = "none"
-        if role == "answer_key_table" and target_field != "answer_markdown":
-            raise ValidationError("answer_key_table target_field must be answer_markdown")
-        if role == "analysis_table" and target_field != "analysis_markdown":
-            raise ValidationError("analysis_table target_field must be analysis_markdown")
+        if role == "answer_key_table" and target_field != "answer_latex":
+            raise ValidationError("answer_key_table target_field must be answer_latex")
+        if role == "analysis_table" and target_field != "analysis_latex":
+            raise ValidationError("analysis_table target_field must be analysis_latex")
         if role in {"noise", "uncertain"} and target_field != "none":
             raise ValidationError(f"{role} target_field must be none")
         if role != "answer_key_table" and entries:

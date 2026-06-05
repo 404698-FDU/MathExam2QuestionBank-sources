@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from pathlib import Path
 import sys
+import time
 from typing import Any
 
 RUNTIME_ROOT = Path(__file__).resolve().parents[2]
@@ -11,6 +13,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from exam_import.core.evidence import EvidenceReport, StepEvidence
+from exam_import.core.execution import call_with_retries
 from exam_import.core.io import read_json, write_json
 from exam_import.core.pipeline_state import StepName
 from exam_import.core.run_context import RunContext
@@ -31,6 +34,10 @@ from exam_import.steps.step4_runtime import run_step4
 from exam_import.steps.step5_render import render_question_bank
 
 
+STEP_RETRY_ATTEMPTS = 3
+STEP_RETRY_DELAY_SECONDS = 2.0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="v12 pipeline entrypoint.")
     parser.add_argument("--spec", required=True, help="Path to v12 import spec.")
@@ -46,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_pipeline(spec: ImportSpec) -> dict[str, Any]:
+    started = time.monotonic()
     run_context = _build_run_context(spec)
     prompt_loader = PromptLoader()
     evidence_steps: list[StepEvidence] = []
@@ -55,18 +63,34 @@ def run_pipeline(spec: ImportSpec) -> dict[str, Any]:
 
     if not spec.steps.skip_step2:
         llm = _require_llm(spec, "step2_question_ranges")
-        step2_summary = run_step2(
-            run_context=run_context,
-            call_spec_path=Path(llm.resolve_call_spec_path("step2_question_ranges")).resolve(),
-            force=spec.cache_policy.force_pipeline,
-            prompt_loader=prompt_loader,
+        step2_result = call_with_retries(
+            lambda: run_step2(
+                run_context=run_context,
+                call_spec_path=Path(llm.resolve_call_spec_path("step2_question_ranges")).resolve(),
+                force=spec.cache_policy.force_pipeline,
+                prompt_loader=prompt_loader,
+            ),
+            max_attempts=STEP_RETRY_ATTEMPTS,
+            retry_delay_seconds=STEP_RETRY_DELAY_SECONDS,
         )
+        if not step2_result.success:
+            raise RuntimeError(
+                f"Step2 failed after {step2_result.attempts} attempts: {step2_result.error}"
+            ) from step2_result.error
+        step2_summary = step2_result.value
         qa_alignment = step2_summary.qa_alignment
         pipeline_summary = step2_summary.pipeline_summary
+        step2_metrics = {
+            **step2_summary.to_metrics(),
+            "worker_count": 1,
+            "retry_count": max(0, step2_result.attempts - 1),
+            "attempt_count": step2_result.attempts,
+            "elapsed_seconds": step2_result.elapsed_seconds,
+        }
         evidence_steps.append(
             StepEvidence(
                 step=StepName.STEP2,
-                metrics=step2_summary.to_metrics(),
+                metrics=step2_metrics,
                 artifacts={
                     "qa_alignment": str(run_context.step2_run_dir / "qa_alignment.json"),
                     "pipeline_summary": str(run_context.step2_run_dir / "pipeline_summary.json"),
@@ -134,11 +158,20 @@ def run_pipeline(spec: ImportSpec) -> dict[str, Any]:
     if not spec.steps.skip_render:
         if current_records is None:
             current_records = _load_question_bank_records(run_context.question_bank_dir / "question_bank.json")
-        render_summary = render_question_bank(
-            run_context=run_context,
-            records=current_records,
-            pipeline_summary=pipeline_summary,
+        render_result = call_with_retries(
+            lambda: render_question_bank(
+                run_context=run_context,
+                records=current_records,
+                pipeline_summary=pipeline_summary,
+            ),
+            max_attempts=STEP_RETRY_ATTEMPTS,
+            retry_delay_seconds=STEP_RETRY_DELAY_SECONDS,
         )
+        if not render_result.success:
+            raise RuntimeError(
+                f"Step5 failed after {render_result.attempts} attempts: {render_result.error}"
+            ) from render_result.error
+        render_summary = render_result.value
         asset_export = render_summary.get("asset_export") if isinstance(render_summary, dict) else {}
         evidence_steps.append(
             StepEvidence(
@@ -148,6 +181,10 @@ def run_pipeline(spec: ImportSpec) -> dict[str, Any]:
                     "asset_reference_count": int((asset_export or {}).get("asset_reference_count") or 0),
                     "exported_asset_count": int((asset_export or {}).get("exported_asset_count") or 0),
                     "missing_asset_count": int((asset_export or {}).get("missing_asset_count") or 0),
+                    "worker_count": 1,
+                    "retry_count": max(0, render_result.attempts - 1),
+                    "attempt_count": render_result.attempts,
+                    "elapsed_seconds": render_result.elapsed_seconds,
                 },
                 artifacts={
                     "render_index": str(run_context.render_dir / "index.html"),
@@ -170,6 +207,7 @@ def run_pipeline(spec: ImportSpec) -> dict[str, Any]:
         "alignment_mode": run_context.alignment_mode,
         "evidence_report": str(report_path),
         "render": render_summary,
+        "elapsed_seconds": round(time.monotonic() - started, 3),
     }
 
 
@@ -216,28 +254,59 @@ def _run_step3(
 ) -> tuple[list[QuestionRecord], dict[str, Any]]:
     llm = _require_llm(spec, "step3_question_json")
     call_spec_path = Path(llm.resolve_call_spec_path("step3_question_json")).resolve()
-    records: list[QuestionRecord] = []
-    errors: list[dict[str, Any]] = []
+    jobs: list[Step3Job] = []
     for row in qa_alignment.qa_alignment:
         question_images = _find_step3_images(run_context, row.question_no, "question")
         if not question_images:
-            raise FileNotFoundError(f"Missing Step3 question crops for q{row.question_no}: {run_context.question_bank_dir / 'per_question' / 'step3_question_crops'}")
+            raise FileNotFoundError(
+                f"Missing Step3 question crops for q{row.question_no}: "
+                f"{run_context.question_bank_dir / 'per_question' / 'step3_question_crops'}"
+            )
         answer_images = _find_step3_images(run_context, row.question_no, "answer")
-        try:
-            record = call_step3_job(
-                job=Step3Job(
-                    question_no=row.question_no,
-                    question_image_paths=question_images,
-                    answer_image_paths=answer_images,
-                ),
+        jobs.append(
+            Step3Job(
+                question_no=row.question_no,
+                question_image_paths=question_images,
+                answer_image_paths=answer_images,
+            )
+        )
+
+    started = time.monotonic()
+    records_by_qno: dict[int, QuestionRecord] = {}
+    errors: list[dict[str, Any]] = []
+    attempt_count = 0
+    retry_count = 0
+    worker_count = max(1, min(llm.max_workers, len(jobs) or 1))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_map = {
+            executor.submit(
+                _run_step3_job_with_retries,
+                job=job,
+                qa_alignment=qa_alignment,
                 call_spec_path=call_spec_path,
                 prompt_loader=prompt_loader,
-            )
-        except Exception as exc:
-            errors.append({"question_no": row.question_no, "error": str(exc)})
-            continue
-        record = sanitize_step3_asset_placeholders(record=record, qa_alignment=qa_alignment)
-        records.append(record)
+            ): job.question_no
+            for job in jobs
+        }
+        for future in as_completed(future_map):
+            question_no = future_map[future]
+            retry_result = future.result()
+            attempt_count += retry_result.attempts
+            retry_count += max(0, retry_result.attempts - 1)
+            if not retry_result.success:
+                errors.append(
+                    {
+                        "question_no": question_no,
+                        "error": str(retry_result.error),
+                        "attempt_count": retry_result.attempts,
+                        "elapsed_seconds": retry_result.elapsed_seconds,
+                    }
+                )
+                continue
+            record = retry_result.value
+            records_by_qno[record.question_no] = record
+
+    records = [records_by_qno[qno] for qno in sorted(records_by_qno)]
     if not records:
         raise RuntimeError("Step3 produced no valid question records")
     summary = write_step3_outputs(
@@ -245,6 +314,10 @@ def _run_step3(
         records=records,
         model_name=llm.primary_model,
         errors=errors,
+        elapsed_seconds=round(time.monotonic() - started, 3),
+        retry_count=retry_count,
+        attempt_count=attempt_count,
+        worker_count=worker_count,
     )
     return records, summary
 
@@ -259,19 +332,54 @@ def _run_step35(
     llm = _require_llm(spec, "step35_latex_audit")
     call_spec_path = Path(llm.resolve_call_spec_path("step35_latex_audit")).resolve()
     source_records = records or _load_question_bank_records(run_context.question_bank_dir / "question_bank.json")
-    normalized_records: list[QuestionRecord] = []
+    started = time.monotonic()
+    normalized_by_qno: dict[int, QuestionRecord] = {}
     before_findings: dict[int, list[Any]] = {}
     after_findings: dict[int, list[Any]] = {}
+    attempt_count = 0
+    retry_count = 0
+    failures: list[dict[str, Any]] = []
     for record in source_records:
         before = audit_record(record)
         before_findings[record.question_no] = before
-        normalized = call_step35_record(
-            record=record,
-            call_spec_path=call_spec_path,
-            audit_findings=before,
-            prompt_loader=prompt_loader,
+    worker_count = max(1, min(llm.max_workers, len(source_records) or 1))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_map = {
+            executor.submit(
+                _run_step35_record_with_retries,
+                record=record,
+                before_findings=before_findings[record.question_no],
+                call_spec_path=call_spec_path,
+                prompt_loader=prompt_loader,
+            ): record.question_no
+            for record in source_records
+        }
+        for future in as_completed(future_map):
+            question_no = future_map[future]
+            retry_result = future.result()
+            attempt_count += retry_result.attempts
+            retry_count += max(0, retry_result.attempts - 1)
+            if not retry_result.success:
+                failures.append(
+                    {
+                        "question_no": question_no,
+                        "error": str(retry_result.error),
+                        "attempt_count": retry_result.attempts,
+                        "elapsed_seconds": retry_result.elapsed_seconds,
+                    }
+                )
+                continue
+            normalized = retry_result.value
+            normalized_by_qno[normalized.question_no] = normalized
+
+    if failures:
+        failure = failures[0]
+        raise RuntimeError(
+            f"Step3.5 failed after retries for q{failure['question_no']}: {failure['error']}"
         )
-        normalized_records.append(normalized)
+
+    normalized_records = [normalized_by_qno[qno] for qno in sorted(normalized_by_qno)]
+    for normalized in normalized_records:
         after_findings[normalized.question_no] = audit_record(normalized)
     summary = write_step35_outputs(
         run_context=run_context,
@@ -279,6 +387,10 @@ def _run_step35(
         before_findings=before_findings,
         after_findings=after_findings,
         write_back=True,
+        elapsed_seconds=round(time.monotonic() - started, 3),
+        retry_count=retry_count,
+        attempt_count=attempt_count,
+        worker_count=worker_count,
     )
     return normalized_records, summary
 
@@ -302,8 +414,51 @@ def _run_step4(
         if "step4_answer_tables" in llm.call_specs
         else None,
         prompt_loader=prompt_loader,
+        max_workers=llm.max_workers,
+        retry_attempts=STEP_RETRY_ATTEMPTS,
+        retry_delay_seconds=STEP_RETRY_DELAY_SECONDS,
     )
     return step4_result.merged_records, step4_result.summary
+
+
+def _run_step3_job_with_retries(
+    *,
+    job: Step3Job,
+    qa_alignment: QAAlignmentDocument,
+    call_spec_path: Path,
+    prompt_loader: PromptLoader,
+):
+    return call_with_retries(
+        lambda: sanitize_step3_asset_placeholders(
+            record=call_step3_job(
+                job=job,
+                call_spec_path=call_spec_path,
+                prompt_loader=prompt_loader,
+            ),
+            qa_alignment=qa_alignment,
+        ),
+        max_attempts=STEP_RETRY_ATTEMPTS,
+        retry_delay_seconds=STEP_RETRY_DELAY_SECONDS,
+    )
+
+
+def _run_step35_record_with_retries(
+    *,
+    record: QuestionRecord,
+    before_findings: list[Any],
+    call_spec_path: Path,
+    prompt_loader: PromptLoader,
+):
+    return call_with_retries(
+        lambda: call_step35_record(
+            record=record,
+            call_spec_path=call_spec_path,
+            audit_findings=before_findings,
+            prompt_loader=prompt_loader,
+        ),
+        max_attempts=STEP_RETRY_ATTEMPTS,
+        retry_delay_seconds=STEP_RETRY_DELAY_SECONDS,
+    )
 
 
 def _require_llm(spec: ImportSpec, step_name: str):
