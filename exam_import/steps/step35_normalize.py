@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -51,6 +52,10 @@ BLANK_PATTERN = re.compile(r"<blank>")
 CHOICE_BLANK_PATTERN = re.compile(r"<choice_blank>")
 CHOICE_BRACKET_PATTERN = re.compile(r"(?:（\s*）|\(\s*\))")
 ASSET_PLACEHOLDER_PATTERN = re.compile(r'<(?:img|table|chart)\s+src="[^"]+"\s*/?>')
+PATCH_TEXT_PATH_PATTERN = re.compile(r"^(stem_latex|answer_latex|analysis_latex)\[(\d+)\]$")
+PATCH_OPTION_PATH_PATTERN = re.compile(
+    r"^options_latex\[(\d+)\]\.options\[(\d+)\]\.content_latex\[(\d+)\]$"
+)
 
 
 @dataclass(frozen=True)
@@ -67,6 +72,95 @@ class AuditFinding:
             "reason": self.reason,
             "text": self.text,
         }
+
+
+@dataclass(frozen=True)
+class Step35PatchEdit:
+    path: str
+    op: str
+    expected_old_json: str
+    expected_old: str
+    new: str
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "op": self.op,
+            "expected_old_json": self.expected_old_json,
+            "new": self.new,
+            "reason": self.reason,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any], index: int) -> "Step35PatchEdit":
+        path = payload.get("path")
+        op = payload.get("op")
+        expected_old_json = payload.get("expected_old_json")
+        new = payload.get("new")
+        reason = payload.get("reason")
+        if not isinstance(path, str) or not path:
+            raise ValidationError(f"Step3.5 patch edits[{index}].path must be a non-empty string")
+        if op != "replace":
+            raise ValidationError(f"Step3.5 patch edits[{index}].op must be replace")
+        if not isinstance(expected_old_json, str) or not expected_old_json:
+            raise ValidationError(f"Step3.5 patch edits[{index}].expected_old_json must be a non-empty string")
+        try:
+            import json
+
+            expected_old = json.loads(expected_old_json)
+        except Exception as exc:
+            raise ValidationError(
+                f"Step3.5 patch edits[{index}].expected_old_json must decode as a JSON string"
+            ) from exc
+        if not isinstance(expected_old, str):
+            raise ValidationError(f"Step3.5 patch edits[{index}].expected_old_json must decode as a string")
+        if not isinstance(new, str) or not new:
+            raise ValidationError(f"Step3.5 patch edits[{index}].new must be a non-empty string")
+        if not isinstance(reason, str) or not reason:
+            raise ValidationError(f"Step3.5 patch edits[{index}].reason must be a non-empty string")
+        return cls(
+            path=path,
+            op=op,
+            expected_old_json=expected_old_json,
+            expected_old=expected_old,
+            new=new,
+            reason=reason,
+        )
+
+
+@dataclass(frozen=True)
+class Step35PatchReview:
+    schema_version: str
+    question_no: int
+    edits: list[Step35PatchEdit]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "question_no": self.question_no,
+            "edits": [item.to_dict() for item in self.edits],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "Step35PatchReview":
+        schema_version = payload.get("schema_version")
+        if schema_version != "step35_latex_patch_v1":
+            raise ValidationError(
+                f"Step3.5 patch schema_version must be step35_latex_patch_v1, got {schema_version!r}"
+            )
+        question_no = payload.get("question_no")
+        if not isinstance(question_no, int) or question_no < 1:
+            raise ValidationError("Step3.5 patch question_no must be a positive integer")
+        edits_payload = payload.get("edits")
+        if not isinstance(edits_payload, list):
+            raise ValidationError("Step3.5 patch edits must be an array")
+        edits: list[Step35PatchEdit] = []
+        for index, item in enumerate(edits_payload):
+            if not isinstance(item, dict):
+                raise ValidationError(f"Step3.5 patch edits[{index}] must be an object")
+            edits.append(Step35PatchEdit.from_dict(item, index))
+        return cls(schema_version=schema_version, question_no=question_no, edits=edits)
 
 
 def audit_record(record: QuestionRecord) -> list[AuditFinding]:
@@ -277,6 +371,24 @@ def build_step35_messages(
     ]
 
 
+def build_step35_patch_messages(
+    *,
+    record: QuestionRecord,
+    audit_findings: list[AuditFinding],
+    prompt_loader: PromptLoader,
+    prompt_ref: str = "step35_latex_patch",
+) -> list[dict[str, Any]]:
+    system_prompt = prompt_loader.load_system_text(prompt_ref)
+    user_prompt = prompt_loader.render_user_text(prompt_ref).replace(
+        "{record_and_audit_findings_json}",
+        _record_and_patch_findings_json(record, audit_findings),
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
 def call_step35_record(
     *,
     record: QuestionRecord,
@@ -319,6 +431,74 @@ def call_step35_record(
     return parse_step35_response(response, expected_tool_name=resolved.call_spec.tool_name, expected_question_no=record.question_no)
 
 
+def call_step35_patch_review(
+    *,
+    record: QuestionRecord,
+    call_spec_path: Path,
+    audit_findings: list[AuditFinding] | None = None,
+    client: LLMClient | None = None,
+    prompt_loader: PromptLoader | None = None,
+    env: dict[str, str] | None = None,
+) -> Step35PatchReview:
+    prompt_loader = prompt_loader or PromptLoader()
+    findings = audit_findings if audit_findings is not None else audit_record(record)
+    resolved = load_and_resolve_call_spec(call_spec_path, prompt_loader=prompt_loader)
+    if resolved.call_spec.mode != "patch_normalize":
+        raise ValidationError(f"Step3.5 patch call spec mode must be patch_normalize, got {resolved.call_spec.mode}")
+    messages = build_step35_patch_messages(
+        record=record,
+        audit_findings=findings,
+        prompt_loader=prompt_loader,
+        prompt_ref=resolved.call_spec.prompt,
+    )
+    tool_schema = resolve_tool_schema(resolved.call_spec.tool_schema or "Step35LatexPatch")
+    payload = build_request_payload(
+        resolved,
+        messages=messages,
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": resolved.call_spec.tool_name,
+                    "description": "提交 Step3.5 局部 LaTeX 规范化补丁。",
+                    "parameters": tool_schema,
+                },
+            }
+        ],
+        tool_choice={
+            "type": "function",
+            "function": {"name": resolved.call_spec.tool_name},
+        },
+    )
+    client = client or LLMClient()
+    response = client.send_chat(resolved, payload, env=env)
+    return parse_step35_patch_response(
+        response,
+        expected_tool_name=resolved.call_spec.tool_name,
+        expected_question_no=record.question_no,
+    )
+
+
+def call_step35_patch_record(
+    *,
+    record: QuestionRecord,
+    call_spec_path: Path,
+    audit_findings: list[AuditFinding] | None = None,
+    client: LLMClient | None = None,
+    prompt_loader: PromptLoader | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[QuestionRecord, Step35PatchReview]:
+    review = call_step35_patch_review(
+        record=record,
+        call_spec_path=call_spec_path,
+        audit_findings=audit_findings,
+        client=client,
+        prompt_loader=prompt_loader,
+        env=env,
+    )
+    return apply_step35_patch(record, review), review
+
+
 def parse_step35_response(
     response: LLMResponse,
     *,
@@ -333,6 +513,104 @@ def parse_step35_response(
             f"Step3.5 returned question_no={record.question_no}, expected {expected_question_no}"
         )
     return record
+
+
+def parse_step35_patch_response(
+    response: LLMResponse,
+    *,
+    expected_tool_name: str,
+    expected_question_no: int,
+) -> Step35PatchReview:
+    payload = parse_tool_call_arguments(response, expected_tool_name=expected_tool_name)
+    review = Step35PatchReview.from_dict(payload)
+    if review.question_no != expected_question_no:
+        raise ValidationError(
+            f"Step3.5 patch returned question_no={review.question_no}, expected {expected_question_no}"
+        )
+    return review
+
+
+def apply_step35_patch(record: QuestionRecord, review: Step35PatchReview) -> QuestionRecord:
+    if review.question_no != record.question_no:
+        raise ValidationError(
+            f"Step3.5 patch question_no={review.question_no}, expected {record.question_no}"
+        )
+    payload = copy.deepcopy(record.to_dict())
+    before_assets = _record_asset_placeholders(payload)
+    for edit in review.edits:
+        _apply_step35_patch_edit(payload, edit)
+    after_assets = _record_asset_placeholders(payload)
+    if before_assets != after_assets:
+        raise ValidationError(
+            f"Step3.5 patch changed asset placeholders for q{record.question_no}: "
+            f"before={before_assets}, after={after_assets}"
+        )
+    return QuestionRecord.from_dict(payload)
+
+
+def _apply_step35_patch_edit(payload: dict[str, Any], edit: Step35PatchEdit) -> None:
+    text_match = PATCH_TEXT_PATH_PATTERN.fullmatch(edit.path)
+    if text_match:
+        field_name = text_match.group(1)
+        index = int(text_match.group(2))
+        values = payload.get(field_name)
+        if not isinstance(values, list) or index >= len(values):
+            raise ValidationError(f"Step3.5 patch path out of range: {edit.path}")
+        current = values[index]
+        if current != edit.expected_old:
+            raise ValidationError(
+                f"Step3.5 patch expected_old mismatch at {edit.path}: "
+                f"expected={edit.expected_old!r}, actual={current!r}"
+            )
+        values[index] = edit.new
+        return
+
+    option_match = PATCH_OPTION_PATH_PATTERN.fullmatch(edit.path)
+    if option_match:
+        group_index = int(option_match.group(1))
+        option_index = int(option_match.group(2))
+        item_index = int(option_match.group(3))
+        groups = payload.get("options_latex")
+        if not isinstance(groups, list) or group_index >= len(groups):
+            raise ValidationError(f"Step3.5 patch path out of range: {edit.path}")
+        group = groups[group_index]
+        if not isinstance(group, dict):
+            raise ValidationError(f"Step3.5 patch path does not point to an option group: {edit.path}")
+        options = group.get("options")
+        if not isinstance(options, list) or option_index >= len(options):
+            raise ValidationError(f"Step3.5 patch path out of range: {edit.path}")
+        option = options[option_index]
+        if not isinstance(option, dict):
+            raise ValidationError(f"Step3.5 patch path does not point to an option: {edit.path}")
+        values = option.get("content_latex")
+        if not isinstance(values, list) or item_index >= len(values):
+            raise ValidationError(f"Step3.5 patch path out of range: {edit.path}")
+        current = values[item_index]
+        if current != edit.expected_old:
+            raise ValidationError(
+                f"Step3.5 patch expected_old mismatch at {edit.path}: "
+                f"expected={edit.expected_old!r}, actual={current!r}"
+            )
+        values[item_index] = edit.new
+        return
+
+    raise ValidationError(f"Step3.5 patch path is not allowed: {edit.path}")
+
+
+def _record_asset_placeholders(payload: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for field_name in ("stem_latex", "answer_latex", "analysis_latex"):
+        for segment in payload.get(field_name, []):
+            values.extend(ASSET_PLACEHOLDER_PATTERN.findall(str(segment)))
+    for group in payload.get("options_latex", []):
+        if not isinstance(group, dict):
+            continue
+        for option in group.get("options", []):
+            if not isinstance(option, dict):
+                continue
+            for segment in option.get("content_latex", []):
+                values.extend(ASSET_PLACEHOLDER_PATTERN.findall(str(segment)))
+    return sorted(values)
 
 
 def write_step35_outputs(
@@ -386,3 +664,45 @@ def _record_and_findings_json(record: QuestionRecord, findings: list[AuditFindin
         "audit_findings": [item.to_dict() for item in findings],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _record_and_patch_findings_json(record: QuestionRecord, findings: list[AuditFinding]) -> str:
+    import json
+
+    payload = {
+        "record": record.to_dict(),
+        "audit_findings": [item.to_dict() for item in findings],
+        "patch_targets": _patch_targets(record),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _patch_targets(record: QuestionRecord) -> list[dict[str, str]]:
+    import json
+
+    targets: list[dict[str, str]] = []
+    for index, value in enumerate(record.stem_latex):
+        targets.append(_patch_target(f"stem_latex[{index}]", value))
+    for index, value in enumerate(record.answer_latex):
+        targets.append(_patch_target(f"answer_latex[{index}]", value))
+    for index, value in enumerate(record.analysis_latex):
+        targets.append(_patch_target(f"analysis_latex[{index}]", value))
+    for group_index, group in enumerate(record.options_latex):
+        for option_index, option in enumerate(group.options):
+            for item_index, value in enumerate(option.content_latex):
+                targets.append(
+                    _patch_target(
+                        f"options_latex[{group_index}].options[{option_index}].content_latex[{item_index}]",
+                        value,
+                    )
+                )
+    return targets
+
+
+def _patch_target(path: str, value: str) -> dict[str, str]:
+    import json
+
+    return {
+        "path": path,
+        "expected_old_json": json.dumps(value, ensure_ascii=True),
+    }

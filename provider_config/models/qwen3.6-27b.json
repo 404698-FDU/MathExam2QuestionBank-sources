@@ -1,9 +1,9 @@
 {
-  "name": "qwen3.7-plus",
+  "name": "qwen3.6-27b",
   "providers": [
     "dashscope"
   ],
-  "context_window": 1000000,
+  "context_window": 131072,
   "supports_vision": true,
   "supports_tool_calling": true,
   "supported_response_modes": [
@@ -11,6 +11,6 @@
     "tool_calling"
   ],
   "token_estimator": "char_div_4",
-  "recommended_tpm": 20000,
+  "recommended_tpm": 56000,
   "default_enable_thinking": false
 }

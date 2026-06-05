@@ -4,6 +4,10 @@
 
 任务：对 Step3 输出的每道单题题库 JSON 做全量格式审计和规范化修复。Step3.5 full 模式不是只修 `audit_findings` 命中的局部文本；即使 `audit_findings` 为空，也必须完整审计所有文字字段。Step3.5 只修格式，不解题、不改题意、不补内容、不重新分类字段。
 
+独立快速模式：`exam_import.cli.run_step35_audit` 提供 standalone Step3.5 入口。该入口支持 `--mode full` 和 `--mode patch`，默认只写入独立 review 目录，不回写最终题库；只有显式传入 `--write-back` 才会备份并更新 `runs/question_bank/<run_id>/question_bank.json`。
+
+`patch` 模式只对本地 `audit_record` 命中的题调用模型；无 finding 的题直接透传。模型只输出 `step35_latex_patch_v1` 局部 replace 补丁，本地应用时会校验 `question_no`、path 白名单、`expected_old_json` 经 JSON 解析后逐字匹配旧值、资产占位标签不增删，并在应用后重新构造 `QuestionRecord`。
+
 兼容关系：
 
 - 输入 `record` 必须是 Step3 输出的 `image_only_question_standardization_v1` 结构。

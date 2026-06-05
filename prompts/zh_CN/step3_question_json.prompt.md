@@ -26,6 +26,15 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 
 输入方式：仅图片输入，不提供 OCR 文本。题面、选项、答案和解析均以图片为准。
 
+本题 allowed_asset_labels（唯一可用资产标签列表）：
+{allowed_asset_labels_json}
+
+资产标签选择规则：
+- 需要插入图片、表格或图表占位时，src 必须从 allowed_asset_labels 中逐字选择。
+- allowed_asset_labels 为空数组时，禁止输出 <img src="...">、<table src="..."> 或 <chart src="...">。
+- 即使裁剪图中能看到红框标签，只要该标签不在 allowed_asset_labels 中，就视为相邻题残留或非本题资产，不得使用。
+- 不得自行修正、改写或发明资产标签；如果能看出原题需要资产但 allowed_asset_labels 中没有可用标签，不要写占位标签，并在 issues 中记录 content_missing。
+
 图片顺序：
 1. 题面裁剪图：包含第 {question_no} 题的题干、选项、表格和必要图形。图片边缘可能含相邻题残留，只整理第 {question_no} 题。
 2. 答案/解析裁剪图：包含第 {question_no} 题的答案、解析、证明过程、计算过程或评分信息。图片边缘可能含相邻题残留，只整理第 {question_no} 题。
@@ -58,7 +67,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 如果某个位置需要插入图片、表格或图表，使用 <img src="...">、<table src="..."> 或 <chart src="...">。
 - 示例：<img src="Q-V02-P01">、<table src="M-V02-T01">、<chart src="M-V02-C01">。
-- 不得自行发明 <img src="...">、<table src="..."> 或 <chart src="..."> 的 src 标签；只有输入裁剪图中明确标注或上游上下文提供的资产标签才允许使用。
+- 不得自行发明 <img src="...">、<table src="..."> 或 <chart src="..."> 的 src 标签；src 必须从本题 allowed_asset_labels 中逐字选择。
 - 如果能看出原题有图片、表格或图表，但没有可确认的资产标签，不要写占位标签；在 issues 中记录 content_missing。
 
 4. options_latex
@@ -84,7 +93,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 可使用 <img src="...">、<table src="..."> 或 <chart src="..."> 表示原文中的图片、表格或图表。
-- 不得自行发明资产标签；没有可确认标签时不要写占位标签，并在 issues 中记录 content_missing。
+- 不得自行发明资产标签；src 必须从本题 allowed_asset_labels 中逐字选择，没有可用标签时不要写占位标签，并在 issues 中记录 content_missing。
 
 6. analysis_latex
 - 填答案/解析图中实际可见的完整解析内容，包括解答步骤、证明过程、计算过程、思路分析、点评、验证和结论理由。
@@ -96,7 +105,7 @@ source_doc: ../../doc/zh_CN/step3_question_json.md
 - 数学表达式必须用 LaTeX。行内数学用 $...$，展示数学用 $$...$$。
 - 每个数组元素代表原始文本中的一段文字或一次主动换行；每个元素内部不得包含真实换行。
 - 可使用 <img src="...">、<table src="..."> 或 <chart src="..."> 表示原文中的图片、表格或图表。
-- 不得自行发明资产标签；没有可确认标签时不要写占位标签，并在 issues 中记录 content_missing。
+- 不得自行发明资产标签；src 必须从本题 allowed_asset_labels 中逐字选择，没有可用标签时不要写占位标签，并在 issues 中记录 content_missing。
 
 7. issues
 - 没有问题时输出空数组 []。

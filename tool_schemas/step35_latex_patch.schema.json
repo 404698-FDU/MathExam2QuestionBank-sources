@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "question_no",
+    "edits"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "step35_latex_patch_v1"
+      ]
+    },
+    "question_no": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "op",
+          "expected_old_json",
+          "new",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "replace"
+            ]
+          },
+          "expected_old_json": {
+            "type": "string",
+            "minLength": 2
+          },
+          "new": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

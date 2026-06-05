@@ -5,6 +5,7 @@ KNOWN_PROMPTS = {
     "step2_layout": "step2_layout.prompt.md",
     "step3_question_json": "step3_question_json.prompt.md",
     "step35_latex_audit": "step35_latex_audit.prompt.md",
+    "step35_latex_patch": "step35_latex_patch.prompt.md",
     "step4_visual_assets": "step4_visual_assets.prompt.md",
     "step4_answer_tables": "step4_answer_tables.prompt.md",
 }

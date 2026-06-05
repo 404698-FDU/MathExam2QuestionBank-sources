@@ -1,0 +1,20 @@
+{
+  "schema_version": "call_spec_v1",
+  "step": "step3_question_json",
+  "mode": "image_only",
+  "prompt": "step3_question_json",
+  "provider": "dashscope",
+  "model": "qwen3.7-plus",
+  "structured_output": "tool_calling",
+  "tool_name": "image_only_question_standardization",
+  "tool_schema": "QuestionRecord",
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "timeout": 300,
+  "max_retries": 1,
+  "enable_thinking": false,
+  "input": {
+    "ocr": false,
+    "images": true
+  }
+}

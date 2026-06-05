@@ -63,3 +63,45 @@
 - Q18 验证：`stem_latex` 现在包含三段，分别为总题干、（1）“若为等差数列...求 S_n”、（2）“若为等比数列...求公比 q 的取值范围”；`issues` 为空。
 - Evidence：`code/sources/runs/reports/shanghai_2019_spring_mixed_v12_pipeline_evidence.json`。
 - 渲染入口：`code/sources/runs/rendered_question_bank_mathjax/shanghai_2019_spring_mixed/index.html`。
+
+## 2026-06-05 Step3.5 独立快速审计脚本
+
+- 任务：实现 standalone Step3.5 脚本，支持 full 和 patch 两种模式，不改 `run_pipeline.py` 主流程。
+- 新增 CLI：`exam_import/cli/run_step35_audit.py`，参数包含 `--mode full|patch`、`--spec`、`--input-question-bank`、`--output-root`、`--workers`、`--call-spec`、`--write-back`。
+- 默认行为：读取 Step3 输入题库，输出到 `runs/reviews_step3_5_latex_audit_standalone/<mode>/<run_id>/`，不回写最终题库；只有 `--write-back` 才备份并更新 `question_bank.json`。
+- 新增 patch 配套：`tool_schemas/step35_latex_patch.schema.json`、`prompts/zh_CN/step35_latex_patch.prompt.md`、`call_specs/step35_latex_audit_patch.dashscope.qwen3.7-plus.tool_calling.json`。
+- 本地硬校验：patch 只支持字符串 `replace`，path 限定为 `stem_latex`、`answer_latex`、`analysis_latex` 和 `options_latex[].options[].content_latex` 的数组元素；`expected_old_json` 经 JSON 解析后必须逐字匹配旧值；不得增删资产占位标签；应用后必须通过 `QuestionRecord.from_dict`。
+- 本地校验：成功覆盖正常 replace、`expected_old_json` 不匹配、非法 path、资产标签变化四类场景。
+- 契约检查：`python.exe -m exam_import.cli.check_contracts` 通过；`step35_latex_patch` prompt、schema、call spec 均为 ok。
+- Standalone full 对比：输入 `question_bank.before_step3_5_latex_audit.json`，21 题全部调用，耗时 37.656 秒；before finding 27，after finding 13，错误 0，重试 0。
+- Standalone patch 对比：同一输入，12 题调用，9 题无 finding 直接透传，耗时 22.056 秒；before finding 27，after finding 13，错误 0，重试 0；patch edit 21 条。
+- 效果验证：full 和 patch 的 after finding 分布一致，均为 Q3:1、Q4:1、Q11:3、Q17:4、Q18:3、Q20:1；Q18 题面两个小问均保留。
+- 输出目录：full 为 `runs/reviews_step3_5_latex_audit_standalone/full/shanghai_2019_spring_mixed/`，patch 为 `runs/reviews_step3_5_latex_audit_standalone/patch/shanghai_2019_spring_mixed/`。本次测试未使用 `--write-back`，未覆盖最终 question bank。
+
+## 2026-06-05 Step3 qwen3.7-plus 速度与效果测试
+
+- 初始状态：`provider_config/models/qwen3.7-plus.json` 中 `supports_vision=false`，而 Step3 call spec 为 `images=true`，按本地 resolver 会拒绝运行。
+- API 探测：直接向 DashScope `qwen3.7-plus` 发送 Q18 crop 图片，返回 200，usage 中包含 `image_tokens=353`，证明当前 API 实际接受图片输入。
+- 配置修正：将 `qwen3.7-plus` 的 `supports_vision` 改为 `true`；新增 `call_specs/step3_question_json.dashscope.qwen3.7-plus.tool_calling.json`。
+- 契约检查：`python.exe -m exam_import.cli.check_contracts` 通过，新增 Step3 qwen3.7-plus call spec 为 ok。
+- 测试方式：复用 `shanghai_2019_spring_mixed` 的 Step2 crop 与 `qa_alignment.json`，standalone 调用 Step3，不写回最终 question bank；输出到 `runs/reviews_step3_model_compare/shanghai_2019_spring_mixed/`。
+- qwen3.5-flash：21/21 成功，错误 0，重试 0，worker 21，耗时 13.481 秒；Step3 后本地 audit finding 20，issues 2；Q18 本次漏掉两个小问且 `answer_latex` 为空。
+- qwen3.7-plus：21/21 成功，错误 0，重试 0，worker 21，耗时 37.038 秒；Step3 后本地 audit finding 13，issues 1；Q18 保留两个小问。
+- 质量观察：qwen3.7-plus 的格式 finding 更少，Q18 内容完整性更好；但它倾向保留“（几分）”评分标记，17 题 stem 中保留“（14分）”，并且 17 题没有从解析中摘取独立答案。按当前 Step3 prompt，“不从解析反推答案”是更严格的边界行为，但评分标记需要后续 prompt 或本地审计另行约束。
+
+## 2026-06-05 Step3 dashscope qwen3.6-27b 速度与效果测试
+
+- API 探测：DashScope 可用模型名为 `qwen3.6-27b`，发送 Q18 crop 图片返回 200 且包含 `image_tokens=353`；`Qwen/Qwen3.6-27B` 在 DashScope 返回 404。现有 `Qwen/Qwen3.6-27B` 配置仅用于 SiliconFlow。
+- 配置新增：`provider_config/models/qwen3.6-27b.json` 绑定 DashScope；新增 `call_specs/step3_question_json.dashscope.qwen3.6-27b.tool_calling.json`。
+- 契约检查：`python.exe -m exam_import.cli.check_contracts` 通过，新增 DashScope qwen3.6-27b Step3 call spec 为 ok。
+- 测试方式：复用 `shanghai_2019_spring_mixed` 的 Step2 crop 与 `qa_alignment.json`，standalone 调用 Step3，不写回最终 question bank；输出到 `runs/reviews_step3_model_compare/shanghai_2019_spring_mixed/qwen3.6-27b/`。
+- qwen3.6-27b：21/21 成功，错误 0，重试 0，worker 21，耗时 16.469 秒；Step3 后本地 audit finding 19，issues 1；Q18 保留两个小问。
+- 三模型对比：qwen3.5-flash 13.481 秒、finding 20、Q18 漏小问；qwen3.6-27b 16.469 秒、finding 19、Q18 完整；qwen3.7-plus 37.038 秒、finding 13、Q18 完整。
+- 质量观察：qwen3.6-27b 速度接近 flash，内容完整性优于本次 flash；但它更倾向保留“（几分）”评分标记，20 题命中评分标记；17-21 题 `answer_latex` 为空，边界更保守；Q19 生成了未在 Step2 映射中的 `Q-V10-F01`，已被本地资产白名单清除并记录 warning。
+
+## 2026-06-05 Step3 allowed_asset_labels 输入修复
+
+- 问题：Step3 之前只通过裁剪图红框让模型“看见”资产标签，没有把本题可用资产标签作为结构化列表提供给模型；模型仍可能发明或误抄非本题标签，之后只能靠本地白名单清洗。
+- 代码修复：`Step3Job` 新增 `allowed_asset_labels`；`run_pipeline.py` 从 `qa_alignment` 为每题计算资产标签列表并传入 Step3；题面侧只使用明确视觉归属 `question.visual_labels`，答案侧从 `answer.items.labels` 过滤视觉资产；`sanitize_step3_asset_placeholders` 复用同一标签计算函数作为后置白名单。
+- Prompt 修复：`step3_question_json.prompt.md` 增加 `allowed_asset_labels` JSON 输入和资产标签选择规则；要求 `<img>`、`<table>`、`<chart>` 的 `src` 必须从本题列表逐字选择，列表为空时禁止输出资产占位。
+- 文档同步：`doc/zh_CN/step3_question_json.md` 已同步新增规则。

@@ -23,6 +23,7 @@ PROMPT_SECTION_CHECKS = {
     "step2_layout": ["meta", "system", "user"],
     "step3_question_json": ["meta", "system", "user"],
     "step35_latex_audit": ["meta", "system", "user"],
+    "step35_latex_patch": ["meta", "system", "user"],
     "step4_visual_assets": ["meta", "system", "user"],
     "step4_answer_tables": ["meta", "system", "user"],
 }
@@ -38,6 +39,7 @@ SCHEMA_REQUIRED_CHECKS = {
         "analysis_latex",
         "issues",
     },
+    "step35_latex_patch.schema.json": {"schema_version", "question_no", "edits"},
     "visual_asset_review.schema.json": {"assets", "risks"},
     "answer_table_review.schema.json": {"tables", "risks"},
 }

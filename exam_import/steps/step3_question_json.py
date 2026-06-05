@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
 from typing import Any
@@ -30,6 +31,7 @@ class Step3Job:
     question_no: int
     question_image_paths: list[Path]
     answer_image_paths: list[Path]
+    allowed_asset_labels: list[str]
 
 
 def build_step3_messages(
@@ -41,7 +43,10 @@ def build_step3_messages(
     system_prompt = prompt_loader.load_system_text(prompt_ref)
     user_prompt = prompt_loader.render_user_text(
         prompt_ref,
-        variables={"question_no": job.question_no},
+        variables={
+            "question_no": job.question_no,
+            "allowed_asset_labels_json": json.dumps(job.allowed_asset_labels, ensure_ascii=False),
+        },
     )
     content: list[dict[str, Any]] = []
     for index, path in enumerate(job.question_image_paths, start=1):
@@ -137,7 +142,7 @@ def sanitize_step3_asset_placeholders(
     record: QuestionRecord,
     qa_alignment: QAAlignmentDocument,
 ) -> QuestionRecord:
-    allowed_labels = _allowed_asset_labels(record.question_no, qa_alignment)
+    allowed_labels = set(allowed_asset_labels_for_question(record.question_no, qa_alignment))
     payload = record.to_dict()
     removed_labels: set[str] = set()
 
@@ -161,15 +166,15 @@ def sanitize_step3_asset_placeholders(
     return QuestionRecord.from_dict(payload)
 
 
-def _allowed_asset_labels(question_no: int, qa_alignment: QAAlignmentDocument) -> set[str]:
+def allowed_asset_labels_for_question(question_no: int, qa_alignment: QAAlignmentDocument) -> list[str]:
     for row in qa_alignment.qa_alignment:
         if row.question_no != question_no:
             continue
-        labels = set(row.question.labels)
+        labels = set(row.question.visual_labels)
         for item in row.answer.items:
             labels.update(item.labels)
-        return {label for label in labels if _looks_like_asset_label(label)}
-    return set()
+        return sorted(label for label in labels if _looks_like_asset_label(label))
+    return []
 
 
 def _looks_like_asset_label(label: str) -> bool:

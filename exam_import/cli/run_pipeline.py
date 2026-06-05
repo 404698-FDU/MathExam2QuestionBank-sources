@@ -26,6 +26,7 @@ from exam_import.steps.step2_runtime import run_step2
 from exam_import.steps.step35_normalize import audit_record, call_step35_record, write_step35_outputs
 from exam_import.steps.step3_question_json import (
     Step3Job,
+    allowed_asset_labels_for_question,
     call_step3_job,
     sanitize_step3_asset_placeholders,
     write_step3_outputs,
@@ -268,6 +269,7 @@ def _run_step3(
                 question_no=row.question_no,
                 question_image_paths=question_images,
                 answer_image_paths=answer_images,
+                allowed_asset_labels=allowed_asset_labels_for_question(row.question_no, qa_alignment),
             )
         )
 
